@@ -320,4 +320,26 @@ with col2:
             # 미래 가격 생성 (단순 선형 추세)
             future_prices = [current_price * (1 + slope * (i/5)) for i in range(1, 6)]
             
-            # DataFrame에 미래 데이터 추가 (History
+            # DataFrame에 미래 데이터 추가 (History 컬럼은 NaN, Prediction 컬럼에 값)
+            future_df = pd.DataFrame({
+                'History': [np.nan]*5,
+                'AI Prediction': future_prices
+            }, index=future_dates)
+            
+            # 과거 데이터와 합치기 (과거 데이터의 Prediction 컬럼은 NaN)
+            display_df['AI Prediction'] = np.nan
+            
+            # 연결 부위 매끄럽게 하기 위해 오늘 날짜에 점 하나 찍기
+            display_df.loc[last_date, 'AI Prediction'] = current_price
+            
+            final_chart = pd.concat([display_df, future_df])
+            
+            # 선 차트 그리기 (색상 구분됨)
+            st.line_chart(final_chart)
+            
+        else:
+            # 분석 전에는 그냥 과거 차트만
+            st.line_chart(chart_data)
+            
+    except Exception as e:
+        st.error(f"차트 로딩 실패: {e}")
