@@ -10,7 +10,7 @@ import os
 from model_def import StockClassifierModel
 
 # ==============================================================================
-# 1. 페이지 설정 및 경로 설정 (에러 해결 핵심)
+# 1. 페이지 설정 및 경로 설정
 # ==============================================================================
 st.set_page_config(page_title="AI Global Asset Advisor", layout="wide", page_icon="📈")
 
@@ -64,15 +64,15 @@ def get_us_data(sectors):
     for ticker in sectors:
         try:
             if isinstance(data.columns, pd.MultiIndex):
-                df = data.xs(ticker, axis=1, level=0).copy()
+                try:
+                    df = data.xs(ticker, axis=1, level=0).copy()
+                except KeyError: return None, None
             else:
                 df = data.copy()
 
-            # 데이터 정제 (0 제거)
             df['Close'] = df['Close'].replace(0, np.nan).ffill()
             df['Volume'] = df['Volume'].replace(0, np.nan).fillna(0)
 
-            # 지표 계산
             df['Change'] = df['Close'].pct_change().fillna(0).clip(-0.3, 0.3)
             delta = df['Close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(14).mean()
@@ -99,7 +99,6 @@ def get_us_data(sectors):
 def get_kr_data(lookback_days=14):
     target_date = datetime.datetime.now().strftime("%Y%m%d")
     
-    # 시가총액 상위 10개 추출
     for i in range(5):
         try:
             check_date = (datetime.datetime.now() - datetime.timedelta(days=i)).strftime("%Y%m%d")
@@ -154,7 +153,15 @@ st.sidebar.title(f"환영합니다, {st.session_state.get('username', 'Member')}
 st.sidebar.markdown("---")
 market_option = st.sidebar.radio("분석할 시장 선택", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"])
 
-# [핵심] 경로 설정: os.path.join을 사용하여 절대 경로 생성
+# [안전장치] 시장을 바꿀 때마다 이전 분석 결과 초기화 (충돌 방지)
+if 'last_market' not in st.session_state:
+    st.session_state.last_market = market_option
+
+if st.session_state.last_market != market_option:
+    st.session_state.analysis_result = None # 결과 리셋
+    st.session_state.last_market = market_option
+
+# 경로 설정
 if market_option == "NASDAQ (QQQ)":
     MODEL_FILE = os.path.join(BASE_DIR, "models", "us_sector_ai_model_qqq.pth")
     SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
@@ -173,7 +180,7 @@ else: # KOSPI
     MODEL_FILE = os.path.join(BASE_DIR, "models", "kospi_model.pth")
     SECTORS = []
     TARGET_NAME = "코스피 200 (KOSPI)"
-    IDX_TICKER = "^KS200"
+    IDX_TICKER = "^KS11" 
     LEV_LONG = "KODEX 레버리지 (122630)"
     LEV_SHORT = "KODEX 200선물인버스2X (252670)"
 
@@ -200,7 +207,7 @@ st.markdown("---")
 
 col1, col2 = st.columns([1, 1.5])
 
-# 분석 결과 저장을 위한 세션 상태
+# 분석 결과 세션 상태 초기화
 if 'analysis_result' not in st.session_state:
     st.session_state.analysis_result = None
 
@@ -210,10 +217,9 @@ with col1:
         
         if model == "NOT_FOUND":
             st.error(f"❌ 모델 파일을 찾을 수 없습니다.")
-            st.code(MODEL_FILE) # 디버깅용 경로 출력
             st.warning("models 폴더가 app.py와 같은 위치에 있는지 확인해주세요.")
         elif model is None:
-            st.error("❌ 모델 로드 중 알 수 없는 오류가 발생했습니다.")
+            st.error("❌ 모델 로드 중 오류가 발생했습니다.")
         else:
             with st.spinner("데이터 수집 및 AI 연산 중..."):
                 if "KOSPI" in market_option:
@@ -227,7 +233,6 @@ with col1:
                         if isinstance(logits, tuple): logits = logits[1]
                         probs = F.softmax(logits, dim=1).squeeze().numpy()
                     
-                    # 결과 저장
                     st.session_state.analysis_result = {
                         'probs': probs,
                         'date': date_str,
@@ -253,17 +258,14 @@ with col1:
         
         decision = "관망 (HOLD)"
         color = "gray"
-        trend_direction = 0 # 0:Flat, 1:Up, -1:Down
         
         if max_prob >= 0.45:
             if pred_idx == 2: 
                 decision = "매수 (BUY)"
                 color = "green"
-                trend_direction = 1
             elif pred_idx == 0: 
                 decision = "매도/인버스 (SELL)"
                 color = "red"
-                trend_direction = -1
         
         st.markdown(f"### 📢 AI 최종 판단: :{color}[**{decision}**]")
         
@@ -276,70 +278,71 @@ with col1:
             """)
 
 with col2:
-    # ---------------------------------------------------------
-    # [차트 개선] 현재 가격 표시 및 미래 예측 라인 추가
-    # ---------------------------------------------------------
-    st.write(f"📊 **{TARGET_NAME} 지수 차트 (AI 예측 포함)**")
+    st.write(f"📊 **{TARGET_NAME} 지수 차트**")
     
     try:
-        # 데이터 가져오기 (최근 90일)
-        chart_df = yf.download(IDX_TICKER, period="3mo", progress=False, auto_adjust=True)
+        # 1. 기본 차트 데이터 가져오기 (무조건 실행)
+        chart_df = yf.download(IDX_TICKER, period="6mo", progress=False, auto_adjust=True)
         
-        # [수정] 0이나 NaN 제거 (그래프 뭉개짐 방지)
-        if isinstance(chart_df.columns, pd.MultiIndex):
-            chart_df = chart_df.xs(IDX_TICKER, axis=1, level=0)
-        
-        chart_data = chart_df['Close'].replace(0, np.nan).dropna()
-        
-        # 현재가 표시
-        current_price = chart_data.iloc[-1]
-        st.metric(label=f"현재 가격 ({IDX_TICKER})", value=f"{current_price:,.2f}")
-
-        # 차트 데이터 구성
-        # 1. 과거 데이터 (History)
-        display_df = pd.DataFrame({'History': chart_data})
-        
-        # 2. 미래 예측 라인 (Prediction) 추가
-        # 분석 결과가 있고, 현재 시장과 일치할 때만 그림
-        if st.session_state.analysis_result and st.session_state.analysis_result['market'] == market_option:
-            res = st.session_state.analysis_result
-            probs = res['probs']
-            pred_idx = np.argmax(probs)
-            max_prob = np.max(probs)
-            
-            # 예측 방향 결정
-            slope = 0
-            if max_prob >= 0.45:
-                if pred_idx == 2: slope = 0.015 # 상승 예측 시 +1.5% 기울기 (시각적용)
-                elif pred_idx == 0: slope = -0.015 # 하락 예측 시 -1.5%
-            
-            # 미래 5일 날짜 생성
-            last_date = chart_data.index[-1]
-            future_dates = [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
-            
-            # 미래 가격 생성 (단순 선형 추세)
-            future_prices = [current_price * (1 + slope * (i/5)) for i in range(1, 6)]
-            
-            # DataFrame에 미래 데이터 추가 (History 컬럼은 NaN, Prediction 컬럼에 값)
-            future_df = pd.DataFrame({
-                'History': [np.nan]*5,
-                'AI Prediction': future_prices
-            }, index=future_dates)
-            
-            # 과거 데이터와 합치기 (과거 데이터의 Prediction 컬럼은 NaN)
-            display_df['AI Prediction'] = np.nan
-            
-            # 연결 부위 매끄럽게 하기 위해 오늘 날짜에 점 하나 찍기
-            display_df.loc[last_date, 'AI Prediction'] = current_price
-            
-            final_chart = pd.concat([display_df, future_df])
-            
-            # 선 차트 그리기 (색상 구분됨)
-            st.line_chart(final_chart)
-            
+        if chart_df.empty:
+            st.warning("차트 데이터를 불러올 수 없습니다.")
         else:
-            # 분석 전에는 그냥 과거 차트만
-            st.line_chart(chart_data)
-            
+            # MultiIndex 처리
+            if isinstance(chart_df.columns, pd.MultiIndex):
+                try: chart_df = chart_df.xs(IDX_TICKER, axis=1, level=0)
+                except: chart_df.columns = chart_df.columns.get_level_values(0)
+
+            # Close 데이터 확보
+            if 'Close' in chart_df.columns:
+                chart_data = chart_df['Close'].replace(0, np.nan).dropna()
+                
+                # 현재가 표시
+                current_price = chart_data.iloc[-1]
+                st.metric(label=f"현재 가격 ({IDX_TICKER})", value=f"{current_price:,.2f}")
+
+                # 2. DataFrame 구성 (History 컬럼)
+                display_df = pd.DataFrame({'History': chart_data})
+                
+                # 3. [2안 적용] 분석 결과가 있을 때만 예측선(Prediction) 추가
+                if st.session_state.analysis_result and st.session_state.analysis_result['market'] == market_option:
+                    res = st.session_state.analysis_result
+                    probs = res['probs']
+                    pred_idx = np.argmax(probs)
+                    max_prob = np.max(probs)
+                    
+                    # 기울기 설정
+                    slope = 0
+                    if max_prob >= 0.45:
+                        if pred_idx == 2: slope = 0.005 # 상승 0.5% (일별)
+                        elif pred_idx == 0: slope = -0.005 # 하락 -0.5%
+                    
+                    # 미래 데이터 생성
+                    last_date = chart_data.index[-1]
+                    future_dates = [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
+                    
+                    # 지수적으로 증가/감소하는 예측선 생성
+                    future_prices = [current_price * ((1 + slope) ** i) for i in range(1, 6)]
+                    
+                    future_df = pd.DataFrame({
+                        'History': [np.nan]*5,
+                        'AI Prediction': future_prices
+                    }, index=future_dates)
+                    
+                    # 연결을 위해 오늘 날짜에 점 하나 찍기 (History의 마지막 값)
+                    display_df['AI Prediction'] = np.nan
+                    display_df.loc[last_date, 'AI Prediction'] = current_price
+                    
+                    # 합치기
+                    final_chart = pd.concat([display_df, future_df])
+                    
+                    # 차트 그리기 (두 가지 색상)
+                    st.line_chart(final_chart)
+                    
+                else:
+                    # 분석 전에는 그냥 과거 차트만 출력
+                    st.line_chart(display_df)
+            else:
+                st.warning("데이터 형식이 올바르지 않습니다.")
+
     except Exception as e:
         st.error(f"차트 로딩 실패: {e}")
