@@ -7,6 +7,7 @@ import yfinance as yf
 from pykrx import stock
 import datetime
 import os
+import plotly.graph_objects as go # [추가] Plotly 라이브러리 임포트
 from model_def import StockClassifierModel
 
 # ==============================================================================
@@ -153,12 +154,12 @@ st.sidebar.title(f"환영합니다, {st.session_state.get('username', 'Member')}
 st.sidebar.markdown("---")
 market_option = st.sidebar.radio("분석할 시장 선택", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"])
 
-# [안전장치] 시장을 바꿀 때마다 이전 분석 결과 초기화 (충돌 방지)
+# [안전장치] 시장을 바꿀 때마다 이전 분석 결과 초기화
 if 'last_market' not in st.session_state:
     st.session_state.last_market = market_option
 
 if st.session_state.last_market != market_option:
-    st.session_state.analysis_result = None # 결과 리셋
+    st.session_state.analysis_result = None
     st.session_state.last_market = market_option
 
 # 경로 설정
@@ -241,7 +242,7 @@ with col1:
                 else:
                     st.error("데이터 수집 실패. 장 시작 전이거나 티커 오류일 수 있습니다.")
 
-    # 결과 표시 로직
+    # 결과 표시
     if st.session_state.analysis_result and st.session_state.analysis_result['market'] == market_option:
         res = st.session_state.analysis_result
         probs = res['probs']
@@ -281,7 +282,7 @@ with col2:
     st.write(f"📊 **{TARGET_NAME} 지수 차트**")
     
     try:
-        # 1. 기본 차트 데이터 가져오기 (무조건 실행)
+        # 1. 기본 차트 데이터 가져오기 (6개월치)
         chart_df = yf.download(IDX_TICKER, period="6mo", progress=False, auto_adjust=True)
         
         if chart_df.empty:
@@ -300,47 +301,74 @@ with col2:
                 current_price = chart_data.iloc[-1]
                 st.metric(label=f"현재 가격 ({IDX_TICKER})", value=f"{current_price:,.2f}")
 
-                # 2. DataFrame 구성 (History 컬럼)
-                display_df = pd.DataFrame({'History': chart_data})
-                
-                # 3. [2안 적용] 분석 결과가 있을 때만 예측선(Prediction) 추가
+                # --- [핵심 변경] Plotly를 이용한 동적 차트 그리기 ---
+                fig = go.Figure()
+
+                # (1) 과거 데이터 선 그리기
+                fig.add_trace(go.Scatter(
+                    x=chart_data.index,
+                    y=chart_data,
+                    mode='lines',
+                    name='History',
+                    line=dict(color='#1f77b4', width=2) # 파란색
+                ))
+
+                # (2) 분석 결과가 있을 경우 예측선 추가
                 if st.session_state.analysis_result and st.session_state.analysis_result['market'] == market_option:
                     res = st.session_state.analysis_result
                     probs = res['probs']
                     pred_idx = np.argmax(probs)
                     max_prob = np.max(probs)
                     
-                    # 기울기 설정
                     slope = 0
+                    trend_color = 'gray'
                     if max_prob >= 0.45:
-                        if pred_idx == 2: slope = 0.005 # 상승 0.5% (일별)
-                        elif pred_idx == 0: slope = -0.005 # 하락 -0.5%
+                        if pred_idx == 2: 
+                            slope = 0.005 # 일별 +0.5% 추세
+                            trend_color = 'green' # 상승은 초록
+                        elif pred_idx == 0: 
+                            slope = -0.005 # 일별 -0.5% 추세
+                            trend_color = 'red' # 하락은 빨강
                     
                     # 미래 데이터 생성
                     last_date = chart_data.index[-1]
-                    future_dates = [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
+                    future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
+                    # 시작점(오늘)부터 미래까지 이어지는 선
+                    future_prices = [current_price * ((1 + slope) ** i) for i in range(0, 6)]
                     
-                    # 지수적으로 증가/감소하는 예측선 생성
-                    future_prices = [current_price * ((1 + slope) ** i) for i in range(1, 6)]
+                    # 예측선 그리기 (점선)
+                    fig.add_trace(go.Scatter(
+                        x=future_dates,
+                        y=future_prices,
+                        mode='lines',
+                        name='AI Trend (Next 5 Days)',
+                        line=dict(color=trend_color, width=3, dash='dot') # 점선, 두껍게
+                    ))
+
+                # (3) 차트 레이아웃 설정 (Y축 자동 스케일링 핵심)
+                # 데이터의 최소/최대값을 구해서 Y축 범위를 동적으로 설정합니다.
+                y_min = chart_data.min()
+                y_max = chart_data.max()
+                # 예측선이 추가된 경우 예측선의 범위도 고려
+                if 'future_prices' in locals():
+                    y_min = min(y_min, min(future_prices))
+                    y_max = max(y_max, max(future_prices))
                     
-                    future_df = pd.DataFrame({
-                        'History': [np.nan]*5,
-                        'AI Prediction': future_prices
-                    }, index=future_dates)
-                    
-                    # 연결을 위해 오늘 날짜에 점 하나 찍기 (History의 마지막 값)
-                    display_df['AI Prediction'] = np.nan
-                    display_df.loc[last_date, 'AI Prediction'] = current_price
-                    
-                    # 합치기
-                    final_chart = pd.concat([display_df, future_df])
-                    
-                    # 차트 그리기 (두 가지 색상)
-                    st.line_chart(final_chart)
-                    
-                else:
-                    # 분석 전에는 그냥 과거 차트만 출력
-                    st.line_chart(display_df)
+                # 여백을 5% 정도 줍니다.
+                margin = (y_max - y_min) * 0.05
+                
+                fig.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="Price",
+                    yaxis_range=[y_min - margin, y_max + margin], # [핵심] Y축 범위 강제 지정
+                    hovermode="x unified", # 마우스 오버 시 정보 표시
+                    margin=dict(l=20, r=20, t=40, b=20), # 차트 여백 조정
+                    height=400 # 차트 높이 고정
+                )
+
+                # Streamlit에 Plotly 차트 표시
+                st.plotly_chart(fig, use_container_width=True)
+
             else:
                 st.warning("데이터 형식이 올바르지 않습니다.")
 
