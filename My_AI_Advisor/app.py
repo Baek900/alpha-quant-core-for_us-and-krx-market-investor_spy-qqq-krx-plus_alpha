@@ -7,7 +7,7 @@ import yfinance as yf
 from pykrx import stock
 import datetime
 import os
-import plotly.graph_objects as go # [추가] Plotly 라이브러리 임포트
+import plotly.graph_objects as go
 from model_def import StockClassifierModel
 
 # ==============================================================================
@@ -162,7 +162,7 @@ if st.session_state.last_market != market_option:
     st.session_state.analysis_result = None
     st.session_state.last_market = market_option
 
-# 경로 설정
+# 경로 및 투자금액 설정
 if market_option == "NASDAQ (QQQ)":
     MODEL_FILE = os.path.join(BASE_DIR, "models", "us_sector_ai_model_qqq.pth")
     SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
@@ -170,6 +170,7 @@ if market_option == "NASDAQ (QQQ)":
     IDX_TICKER = "QQQ"
     LEV_LONG = "QLD (2x) / TQQQ (3x)"
     LEV_SHORT = "QID (2x) / SQQQ (3x)"
+    INVEST_AMT = "$1,000" # [설정] 미국 주식은 달러
 elif market_option == "S&P 500 (SPY)":
     MODEL_FILE = os.path.join(BASE_DIR, "models", "us_spy_target_best_model.pth")
     SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
@@ -177,6 +178,7 @@ elif market_option == "S&P 500 (SPY)":
     IDX_TICKER = "SPY"
     LEV_LONG = "SSO (2x) / UPRO (3x)"
     LEV_SHORT = "SDS (2x) / SPXU (3x)"
+    INVEST_AMT = "$1,000" # [설정] 미국 주식은 달러
 else: # KOSPI
     MODEL_FILE = os.path.join(BASE_DIR, "models", "kospi_model.pth")
     SECTORS = []
@@ -184,6 +186,7 @@ else: # KOSPI
     IDX_TICKER = "^KS11" 
     LEV_LONG = "KODEX 레버리지 (122630)"
     LEV_SHORT = "KODEX 200선물인버스2X (252670)"
+    INVEST_AMT = "1,000,000원" # [설정] 한국 주식은 원화
 
 # 모델 로드
 @st.cache_resource
@@ -270,11 +273,12 @@ with col1:
         
         st.markdown(f"### 📢 AI 최종 판단: :{color}[**{decision}**]")
         
+        # [수정] INVEST_AMT 변수 적용으로 시장별 통화 단위 자동 변경
         with st.expander("💡 상세 투자 가이드 (클릭)", expanded=True):
             st.markdown(f"""
             **기준일: {res['date']}**
-            * **매수 신호:** {LEV_LONG} $1,000 적립
-            * **매도 신호:** {LEV_SHORT} $1,000 적립 (또는 현금화)
+            * **매수 신호:** {LEV_LONG} **{INVEST_AMT}** 적립
+            * **매도 신호:** {LEV_SHORT} **{INVEST_AMT}** 적립 (또는 현금화)
             * **관망:** 현금 보유 및 대기
             """)
 
@@ -288,85 +292,83 @@ with col2:
         if chart_df.empty:
             st.warning("차트 데이터를 불러올 수 없습니다.")
         else:
-            # MultiIndex 처리
             if isinstance(chart_df.columns, pd.MultiIndex):
                 try: chart_df = chart_df.xs(IDX_TICKER, axis=1, level=0)
                 except: chart_df.columns = chart_df.columns.get_level_values(0)
 
-            # Close 데이터 확보
             if 'Close' in chart_df.columns:
                 chart_data = chart_df['Close'].replace(0, np.nan).dropna()
-                
-                # 현재가 표시
                 current_price = chart_data.iloc[-1]
                 st.metric(label=f"현재 가격 ({IDX_TICKER})", value=f"{current_price:,.2f}")
 
-                # --- [핵심 변경] Plotly를 이용한 동적 차트 그리기 ---
+                # 최근 변동성 계산
+                recent_volatility = chart_data.pct_change().tail(30).std()
+                if np.isnan(recent_volatility) or recent_volatility == 0:
+                    recent_volatility = 0.01
+
+                # Plotly 차트
                 fig = go.Figure()
 
-                # (1) 과거 데이터 선 그리기
                 fig.add_trace(go.Scatter(
                     x=chart_data.index,
                     y=chart_data,
                     mode='lines',
                     name='History',
-                    line=dict(color='#1f77b4', width=2) # 파란색
+                    line=dict(color='#1f77b4', width=2)
                 ))
 
-                # (2) 분석 결과가 있을 경우 예측선 추가
                 if st.session_state.analysis_result and st.session_state.analysis_result['market'] == market_option:
                     res = st.session_state.analysis_result
                     probs = res['probs']
-                    pred_idx = np.argmax(probs)
-                    max_prob = np.max(probs)
+                    prob_down, prob_flat, prob_up = probs[0], probs[1], probs[2]
                     
-                    slope = 0
+                    # [공식] 기대 변동률 (확률 가중치 반영)
+                    expected_daily_move = (prob_up * recent_volatility) - (prob_down * recent_volatility)
+                    
                     trend_color = 'gray'
-                    if max_prob >= 0.45:
-                        if pred_idx == 2: 
-                            slope = 0.005 # 일별 +0.5% 추세
-                            trend_color = 'green' # 상승은 초록
-                        elif pred_idx == 0: 
-                            slope = -0.005 # 일별 -0.5% 추세
-                            trend_color = 'red' # 하락은 빨강
-                    
-                    # 미래 데이터 생성
+                    if expected_daily_move > 0.0005: trend_color = 'green'
+                    elif expected_daily_move < -0.0005: trend_color = 'red'
+
                     last_date = chart_data.index[-1]
                     future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
-                    # 시작점(오늘)부터 미래까지 이어지는 선
-                    future_prices = [current_price * ((1 + slope) ** i) for i in range(0, 6)]
                     
-                    # 예측선 그리기 (점선)
+                    future_prices = []
+                    temp_price = current_price
+                    future_prices.append(temp_price)
+
+                    for _ in range(5):
+                        temp_price = temp_price * (1 + expected_daily_move)
+                        future_prices.append(temp_price)
+                    
                     fig.add_trace(go.Scatter(
                         x=future_dates,
                         y=future_prices,
                         mode='lines',
-                        name='AI Trend (Next 5 Days)',
-                        line=dict(color=trend_color, width=3, dash='dot') # 점선, 두껍게
+                        name=f'AI Forecast',
+                        line=dict(color=trend_color, width=3, dash='dot')
                     ))
+                    
+                    total_return = (future_prices[-1] / current_price - 1) * 100
+                    st.caption(f"💡 AI 확률 기반 5일 예상 변동폭: **{total_return:+.2f}%** (확률 가중치 적용)")
 
-                # (3) 차트 레이아웃 설정 (Y축 자동 스케일링 핵심)
-                # 데이터의 최소/최대값을 구해서 Y축 범위를 동적으로 설정합니다.
                 y_min = chart_data.min()
                 y_max = chart_data.max()
-                # 예측선이 추가된 경우 예측선의 범위도 고려
                 if 'future_prices' in locals():
                     y_min = min(y_min, min(future_prices))
                     y_max = max(y_max, max(future_prices))
                     
-                # 여백을 5% 정도 줍니다.
                 margin = (y_max - y_min) * 0.05
                 
                 fig.update_layout(
                     xaxis_title="Date",
                     yaxis_title="Price",
-                    yaxis_range=[y_min - margin, y_max + margin], # [핵심] Y축 범위 강제 지정
-                    hovermode="x unified", # 마우스 오버 시 정보 표시
-                    margin=dict(l=20, r=20, t=40, b=20), # 차트 여백 조정
-                    height=400 # 차트 높이 고정
+                    yaxis_range=[y_min - margin, y_max + margin],
+                    hovermode="x unified",
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    height=400,
+                    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
                 )
 
-                # Streamlit에 Plotly 차트 표시
                 st.plotly_chart(fig, use_container_width=True)
 
             else:
