@@ -1,12 +1,12 @@
-# daily_batch.py
 import os
+import sys  # [추가] 실행 인자(kr/us)를 받기 위해 필요
 import torch
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 from supabase import create_client, Client
 
-# [수정] 뉴스 분석 모듈 임포트 제거 (나중에 5단계에서 추가)
+# [수정] 뉴스 분석 모듈 임포트 제거
 # from news_agent import analyze_market_sentiment 
 from model_def import StockClassifierModel
 from data_loader import get_us_data, get_kr_data
@@ -90,8 +90,7 @@ def run_analysis_batch(market_option):
     news_score = 50 
     news_prob = 0.5
 
-    # 6. 앙상블 (지금은 뉴스 영향력이 없도록 기술적 분석 100%로 설정해도 됨)
-    # 하지만 구조 유지를 위해 가중치는 남겨둠
+    # 6. 앙상블
     W_TECH = 0.7
     W_NEWS = 0.3
     final_up = (tech_up * W_TECH) + (news_prob * W_NEWS)
@@ -100,6 +99,19 @@ def run_analysis_batch(market_option):
     save_to_supabase(market_option, tech_up, news_score, final_up, W_TECH, W_NEWS)
 
 if __name__ == "__main__":
-    markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]
+    # 실행 시 전달된 인자 확인 (예: python daily_batch.py kr)
+    mode = "all"
+    if len(sys.argv) > 1:
+        mode = sys.argv[1].lower()
+
+    if mode == "kr":
+        markets = ["KOSPI (Korea)"]
+    elif mode == "us":
+        markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)"]
+    else:
+        markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]
+
+    print(f"🔄 Mode: {mode} / Targets: {markets}")
+
     for m in markets:
         run_analysis_batch(m)
