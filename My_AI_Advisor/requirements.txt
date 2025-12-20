@@ -9,4 +9,5 @@ plotly
 langchain-google-genai
 langchain-community
 duckduckgo-search
-supabase  <-- 이거 추가!
+supabase  #<-- 이거 추가!
+
