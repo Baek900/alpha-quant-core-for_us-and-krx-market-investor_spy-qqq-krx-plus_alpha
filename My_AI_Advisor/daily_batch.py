@@ -1,3 +1,4 @@
+# daily_batch.py
 import os
 import torch
 import torch.nn.functional as F
@@ -5,18 +6,17 @@ import numpy as np
 import pandas as pd
 from supabase import create_client, Client
 
-# 만든 모듈들 가져오기
+# [수정] 뉴스 분석 모듈 임포트 제거 (나중에 5단계에서 추가)
+# from news_agent import analyze_market_sentiment 
 from model_def import StockClassifierModel
-from news_agent import analyze_market_sentiment
-from data_loader import get_us_data, get_kr_data # 방금 만든 파일
+from data_loader import get_us_data, get_kr_data
 
-# 환경변수에서 키 가져오기 (GitHub Actions용)
+# 환경변수 (GitHub Actions용)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-# 로컬 테스트용 (키가 없을 때 에러 방지)
 if not SUPABASE_URL:
-    print("⚠️ Supabase URL이 설정되지 않았습니다. DB 저장을 건너뜁니다.")
+    print("⚠️ Supabase 설정 없음. 로컬 테스트 모드")
     supabase = None
 else:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -37,7 +37,6 @@ def save_to_supabase(market, tech_prob, news_score, final_prob, w_tech, w_news):
             "w_news": float(w_news),
             "action": action
         }
-        # DB에 저장
         supabase.table("prediction_logs").insert(data).execute()
         print(f"✅ [{market}] Supabase 저장 완료")
         return True
@@ -48,7 +47,7 @@ def save_to_supabase(market, tech_prob, news_score, final_prob, w_tech, w_news):
 def run_analysis_batch(market_option):
     print(f"🚀 분석 시작: {market_option}")
     
-    # 1. 모델 경로
+    # 1. 모델 경로 설정
     if market_option == "NASDAQ (QQQ)":
         MODEL_FILE = os.path.join(BASE_DIR, "models", "us_sector_ai_model_qqq.pth")
         SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
@@ -69,7 +68,7 @@ def run_analysis_batch(market_option):
         print(f"❌ 모델 로드 실패: {e}")
         return
 
-    # 3. 데이터 수집 (data_loader 사용)
+    # 3. 데이터 수집
     if "KOSPI" in market_option:
         input_tensor, _ = get_kr_data()
     else:
@@ -79,7 +78,7 @@ def run_analysis_batch(market_option):
         print("❌ 데이터 수집 실패")
         return
 
-    # 4. 예측
+    # 4. 예측 수행
     with torch.no_grad():
         logits = model(input_tensor)
         if isinstance(logits, tuple): logits = logits[1]
@@ -87,16 +86,12 @@ def run_analysis_batch(market_option):
     
     tech_up = probs[2]
 
-    # 5. 뉴스 분석 (Gemini)
-    try:
-        news_score, _ = analyze_market_sentiment(market_option)
-    except:
-        news_score = 50 # 에러 시 중립
-        print("⚠️ 뉴스 분석 에러 (기본값 50 적용)")
-        
-    news_prob = news_score / 100.0
+    # 5. [수정] 뉴스 분석 (Step 5 전까지는 50점 고정)
+    news_score = 50 
+    news_prob = 0.5
 
-    # 6. 앙상블 (가중치 0.7:0.3 고정)
+    # 6. 앙상블 (지금은 뉴스 영향력이 없도록 기술적 분석 100%로 설정해도 됨)
+    # 하지만 구조 유지를 위해 가중치는 남겨둠
     W_TECH = 0.7
     W_NEWS = 0.3
     final_up = (tech_up * W_TECH) + (news_prob * W_NEWS)
