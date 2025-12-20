@@ -1,0 +1,37 @@
+name: Daily Analysis (Korea)
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # 한국 시간 아침 08:00
+  workflow_dispatch:
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./My_AI_Advisor
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install PyTorch (CPU version)
+      run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install supabase
+
+    - name: Run Analysis Script (Korea)
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: python daily_batch.py kr
