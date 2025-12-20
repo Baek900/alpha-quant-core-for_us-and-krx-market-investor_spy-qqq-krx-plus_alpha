@@ -6,3 +6,7 @@ yfinance>=0.2.40
 pykrx
 matplotlib
 plotly
+langchain-google-genai
+langchain-community
+duckduckgo-search
+supabase  <-- 이거 추가!
