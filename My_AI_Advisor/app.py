@@ -32,107 +32,118 @@ MARKET_STATS = {
 }
 
 # ==============================================================================
-# 1. Configuration & Custom CSS (High Contrast Black Theme)
+# 1. Configuration & Custom CSS (Ultimate High Contrast Theme)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
 
 st.markdown("""
     <style>
-        /* 1. Font Import */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap');
         
-        /* 2. Global Reset & High Contrast Dark Theme */
+        /* 1. Global High Contrast Text */
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
-            color: #FFFFFF !important; /* [Change] Text color brightened to pure white */
+            color: #FFFFFF !important; /* Pure White Text */
         }
         
-        /* Force Background Color to Black */
+        /* 2. Absolute Black Background */
         .stApp {
             background-color: #000000 !important;
         }
 
-        /* 3. Hide Default Streamlit Elements */
+        /* 3. Hide Default Elements */
         header {visibility: hidden !important;}
         footer {visibility: hidden !important;}
         [data-testid="stSidebar"] {display: none !important;}
         section[data-testid="stSidebar"] {display: none !important;}
 
-        /* 4. Metric Box Design (Cards) */
+        /* 4. High Contrast Metric Cards */
         div[data-testid="stMetric"] {
-            background-color: #121212 !important; 
-            border: 1px solid #333333;
+            background-color: #080808 !important; /* Very Dark Grey */
+            border: 2px solid #6B7280 !important; /* [Bright Border] Visible Grey/White */
             padding: 15px;
             border-radius: 8px;
         }
+        
+        /* Labels: White & Bold */
         div[data-testid="stMetricLabel"] {
-            font-size: 0.9rem !important; /* [Change] Slightly larger */
-            color: #E5E7EB !important;   /* [Change] Brightened Label Color (Light Gray) */
-            font-weight: 500 !important;
+            font-size: 1rem !important; 
+            color: #FFFFFF !important; 
+            font-weight: 600 !important;
         }
+        
+        /* Values: Huge, White, Extra Bold */
         div[data-testid="stMetricValue"] {
-            font-size: 1.6rem !important;
-            font-weight: 700 !important;
-            color: #FFFFFF !important;   /* Pure White */
+            font-size: 1.8rem !important;
+            font-weight: 900 !important;
+            color: #FFFFFF !important;
+            text-shadow: 0px 0px 2px rgba(255,255,255,0.3); /* Slight glow for readability */
         }
 
-        /* 5. Button Styling */
+        /* 5. High Visibility Buttons */
         div.stButton > button {
             width: 100%;
             background-color: #2563EB;
             color: white;
-            border: none;
+            border: 2px solid #60A5FA; /* Light Blue Border */
             border-radius: 6px;
-            padding: 0.5rem 1rem;
-            font-weight: 600;
+            padding: 0.6rem 1rem;
+            font-weight: 700;
+            font-size: 1rem;
         }
         div.stButton > button:hover {
             background-color: #1D4ED8;
-            color: white;
+            border-color: #FFFFFF;
         }
 
-        /* 6. Form Inputs */
-        div[data-baseweb="select"] > div {
-            background-color: #1E1E2E !important;
+        /* 6. High Contrast Form Inputs */
+        div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
+            background-color: #111111 !important;
             color: white !important;
-            border-color: #4B5563 !important; /* Lighter border */
-        }
-        div[data-baseweb="input"] > div {
-            background-color: #1E1E2E !important;
-            color: white !important;
-            border-color: #4B5563 !important;
+            border: 2px solid #6B7280 !important; /* Bright Border */
         }
         div[data-baseweb="base-input"] {
-            background-color: #1E1E2E !important;
+            background-color: #111111 !important;
         }
         input {
             color: white !important;
+            font-weight: 600;
         }
         
+        /* Dropdown Menu */
         ul[data-testid="stSelectboxVirtualDropdown"] {
-            background-color: #1E1E2E !important;
+            background-color: #111111 !important;
+            border: 1px solid #FFFFFF !important;
         }
         li[role="option"] {
             color: white !important;
+            font-weight: 500;
         }
 
-        /* 7. Expander Styling */
+        /* 7. Expander Styling (Defined Borders) */
         .streamlit-expanderHeader {
-            background-color: #1E1E2E !important;
-            color: #FFFFFF !important; /* Brightened */
+            background-color: #111111 !important;
+            color: #FFFFFF !important;
+            border: 1px solid #6B7280 !important;
             border-radius: 4px;
+            font-weight: 600;
         }
         div[data-testid="stExpanderDetails"] {
-            background-color: #121212 !important;
-            border: 1px solid #333;
+            background-color: #000000 !important;
+            border: 1px solid #6B7280;
             border-top: none;
-            border-radius: 0 0 4px 4px;
+            color: #FFFFFF !important;
         }
 
         /* 8. Divider */
         hr {
-            border-top: 1px solid #444; /* Slightly brighter line */
+            border-top: 2px solid #555555 !important;
             margin: 1.5rem 0;
+        }
+        
+        /* 9. Success/Error Boxes High Contrast */
+        div[data-testid="stMarkdownContainer"] p {
+            color: #FFFFFF !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -227,8 +238,8 @@ if st.session_state["current_page"] == "Home":
         if st.button("🔑 Log In", use_container_width=True):
             login_dialog()
 
-    # [Change] Subtitle color brightened (#888 -> #D1D5DB)
-    st.markdown("<h3 style='color: #D1D5DB; font-weight: 400;'>Advanced Financial Forecasting System powered by TMFG-LSTM</h3>", unsafe_allow_html=True)
+    # Subtitle: Pure White
+    st.markdown("<h3 style='color: #FFFFFF; font-weight: 600;'>Advanced Financial Forecasting System powered by TMFG-LSTM</h3>", unsafe_allow_html=True)
     st.write("This platform leverages deep learning architectures to analyze global market trends, macroeconomics, and sector rotation, providing institutional-grade insights.")
     
     st.divider()
@@ -254,16 +265,17 @@ if st.session_state["current_page"] == "Home":
         alpha = final_ai_ret - final_bm_ret
 
         fig_bench = go.Figure()
-        fig_bench.add_trace(go.Scatter(x=df.index, y=ai_returns, mode='lines', name='Alpha Strategy', line=dict(color='#00E396', width=2)))
-        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#9CA3AF', dash='dot'))) # [Change] Lighter benchmark line
+        fig_bench.add_trace(go.Scatter(x=df.index, y=ai_returns, mode='lines', name='Alpha Strategy', line=dict(color='#00E396', width=3))) # Thicker line
+        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#AAAAAA', dash='dot', width=2))) # Brighter gray
         
         fig_bench.update_layout(
             paper_bgcolor='rgba(0,0,0,0)', 
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=0, r=0, t=30, b=0),
-            xaxis=dict(showgrid=False, color='#D1D5DB'), # [Change] Brighter Axis Labels
-            yaxis=dict(showgrid=True, gridcolor='#333', color='#D1D5DB', tickformat='.0%'), # [Change] Brighter Axis Labels
-            legend=dict(orientation="h", y=1.1, font=dict(color="white")),
+            # High Contrast Axis
+            xaxis=dict(showgrid=True, gridcolor='#444', color='#FFFFFF'), 
+            yaxis=dict(showgrid=True, gridcolor='#444', color='#FFFFFF', tickformat='.0%'),
+            legend=dict(orientation="h", y=1.1, font=dict(color="white", size=12)),
             height=350
         )
         
@@ -316,7 +328,7 @@ if st.session_state["current_page"] == "Home":
 # ------------------------------------------------------------------------------
 elif st.session_state["current_page"] == "Dashboard":
     
-    # [CUSTOM NAVBAR] Replaces the Sidebar
+    # [CUSTOM NAVBAR]
     nav_col1, nav_col2 = st.columns([3, 1])
     
     with nav_col1:
@@ -340,8 +352,8 @@ elif st.session_state["current_page"] == "Dashboard":
         st.caption("Live Market Analysis & Signal Generation")
     
     with top_col2:
-         # [Change] Status text brightened (#888 -> #D1D5DB)
-         st.markdown(f"<div style='text-align: right; color: #D1D5DB;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
+         # Status: Brighter Text
+         st.markdown(f"<div style='text-align: right; color: #FFFFFF; font-weight: bold;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
 
     # Configuration Map
     if market_option == "NASDAQ (QQQ)":
@@ -357,14 +369,13 @@ elif st.session_state["current_page"] == "Dashboard":
     col1, col2 = st.columns([1, 1.5])
 
     # =========================================================
-    # [Left Column] Signal and Strategy Display
+    # [Left Column] Signal
     # =========================================================
     with col1:
         if latest_data:
             date_str = convert_utc_to_kst(latest_data['created_at'])
             
             up_prob = latest_data['final_prob']
-            
             down_prob = latest_data.get('prob_down', (1.0 - up_prob) * 0.5)
             hold_prob = latest_data.get('prob_neutral', (1.0 - up_prob) * 0.5)
             
@@ -378,7 +389,7 @@ elif st.session_state["current_page"] == "Dashboard":
             
             # Primary Signal Decision
             decision = "HOLD"
-            d_color = "#D1D5DB" # [Change] Grey -> Light Grey
+            d_color = "#AAAAAA" # Bright Grey
             if up_prob >= 0.45:
                 decision = "BUY"
                 d_color = "#00E396" # Green
@@ -386,50 +397,47 @@ elif st.session_state["current_page"] == "Dashboard":
                 decision = "SELL"
                 d_color = "#FF4560" # Red
             
-            # [Change] Primary Signal box text color brightened
+            # High Contrast Signal Box
             st.markdown(f"""
-            <div style='margin-top: 20px; padding: 20px; border: 1px solid {d_color}; border-radius: 8px; background-color: rgba(255,255,255,0.05); text-align: center;'>
-                <span style='color: #D1D5DB; font-size: 0.9rem;'>Primary Signal</span><br>
-                <span style='color: {d_color}; font-size: 2rem; font-weight: bold;'>{decision}</span>
+            <div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #111111; text-align: center;'>
+                <span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Primary Signal</span><br>
+                <span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span>
             </div>
             """, unsafe_allow_html=True)
             
-            # Create strategy text
             prev_signal = prev_data['action'] if prev_data else None
             strategy_text = get_strategy_text(prev_signal, decision)
 
             with st.expander("View Strategy Details", expanded=True):
                 st.write("") 
                 
-                # Signal change indication
                 st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
                 
-                # Strategy Description Box
+                # High Contrast Strategy Text
                 st.markdown(f"""
                 <div style="
                     margin-top: 10px;
                     margin-bottom: 15px;
                     padding: 15px;
-                    background-color: #121212; 
-                    border-left: 4px solid #7C3AED; 
+                    background-color: #000000; 
+                    border: 1px solid #7C3AED; 
                     border-radius: 4px;
                 ">
                     <p style="
-                        color: #FFFFFF; /* [Change] Pure White text */
+                        color: #FFFFFF; 
                         font-size: 1rem; 
                         line-height: 1.6; 
                         margin: 0;
-                        font-weight: 500;
+                        font-weight: 600;
                     ">
                         {strategy_text}
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Leverage Information
-                # [Change] #999 -> #C0C0C0 (Lighter Grey)
+                # High Contrast Leverage Info
                 st.markdown(f"""
-                <div style='font-size: 0.8rem; color: #C0C0C0; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;'>
+                <div style='font-size: 0.9rem; color: #CCCCCC; margin-top: 10px; border-top: 2px solid #555; padding-top: 10px; font-weight: 500;'>
                 * 📈 <b>Long Target:</b> {LEV_LONG}<br>
                 * 📉 <b>Short Target:</b> {LEV_SHORT}
                 </div>
@@ -499,10 +507,10 @@ elif st.session_state["current_page"] == "Dashboard":
 
                     # Draw chart
                     fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=2)))
+                    fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=3))) # Bold line
 
                     if latest_data:
-                        trend_color = '#D1D5DB' # [Change] Forecast line color brightened
+                        trend_color = '#FFFFFF' # White fallback
                         if total_return > 0: trend_color = '#00E396'
                         elif total_return < 0: trend_color = '#FF4560'
 
@@ -511,15 +519,15 @@ elif st.session_state["current_page"] == "Dashboard":
                         
                         future_prices = [current_price * ((1 + daily_expected_move) ** i) for i in range(0, 6)]
                         
-                        fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=3, dash='dot')))
+                        fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) # Thicker forecast
 
                     fig.update_layout(
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
                         margin=dict(l=0, r=0, t=10, b=0),
-                        # [Change] Axis colors brightened
-                        xaxis=dict(showgrid=False, color='#D1D5DB'),
-                        yaxis=dict(showgrid=True, gridcolor='#333', color='#D1D5DB'),
+                        # High Contrast Chart Grid
+                        xaxis=dict(showgrid=True, gridcolor='#444', color='#FFFFFF'),
+                        yaxis=dict(showgrid=True, gridcolor='#444', color='#FFFFFF'),
                         height=350,
                         showlegend=False
                     )
