@@ -14,9 +14,12 @@ import os
 # ==============================================================================
 st.set_page_config(page_title="AI Global Asset Advisor", layout="wide", page_icon="📈")
 
-# Initialize Session State for Login
+# Initialize Session State
 if "password_correct" not in st.session_state:
     st.session_state["password_correct"] = False
+
+if "current_page" not in st.session_state:
+    st.session_state["current_page"] = "Home"
 
 # Connect to Supabase
 try:
@@ -52,42 +55,55 @@ def load_latest_analysis(market_name):
     except:
         return None
 
-def check_password():
-    """Authentication Logic"""
-    def password_entered():
-        if st.session_state["username"] in st.secrets["users"] and \
-           st.session_state["password"] == st.secrets["users"][st.session_state["username"]]:
+def logout():
+    """Logs out the user and resets the state."""
+    st.session_state["password_correct"] = False
+    st.session_state["logged_in_user"] = None
+    st.session_state["current_page"] = "Home"
+    st.rerun()
+
+# ==============================================================================
+# 3. Login Dialog Logic (Popup)
+# ==============================================================================
+@st.dialog("🔒 Member Login")
+def login_dialog():
+    st.write("Please enter your credentials.")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Log In"):
+        if username in st.secrets["users"] and password == st.secrets["users"][username]:
             st.session_state["password_correct"] = True
-            
-            # [Edit 1] When login is successful, store the ID in a permanent variable instead of the widget variable that disappears.
-            st.session_state["logged_in_user"] = st.session_state["username"]
-            
-            del st.session_state["password"]
+            st.session_state["logged_in_user"] = username
+            st.session_state["current_page"] = "Dashboard"
+            st.rerun()
         else:
-            st.session_state["password_correct"] = False
-
-    if not st.session_state["password_correct"]:
-        st.subheader("🔒 Member Login")
-        st.text_input("Username", key="username")
-        st.text_input("Password", type="password", on_change=password_entered, key="password")
-        st.error("Please log in to access the real-time AI Dashboard.")
-        return False
-    else:
-        return True
+            st.error("Incorrect username or password.")
 
 # ==============================================================================
-# 3. Main Navigation (Sidebar)
+# 4. Page Routing Logic
 # ==============================================================================
-st.sidebar.title("Global AI Advisor")
-page = st.sidebar.radio("Navigation", ["🏠 Home (About Model)", "🚀 AI Dashboard (Member Only)"])
-st.sidebar.markdown("---")
 
-# ==============================================================================
-# 4. Page: Home (Landing Page - Public)
-# ==============================================================================
-if page == "🏠 Home (About Model)":
-    # Header
-    st.title("Generative AI Asset Allocation System")
+# If the user is already logged in, ensure they stay on the Dashboard (or allowed page)
+if st.session_state["password_correct"]:
+    st.session_state["current_page"] = "Dashboard"
+
+# ------------------------------------------------------------------------------
+# PAGE: HOME (Public Landing Page)
+# ------------------------------------------------------------------------------
+if st.session_state["current_page"] == "Home":
+    
+    # [Layout] Header with Login Button in Top-Right
+    col_header, col_login = st.columns([6, 1])
+    
+    with col_header:
+        st.title("Generative AI Asset Allocation System")
+    
+    with col_login:
+        # This button triggers the popup dialog
+        if st.button("🔑 Log In", use_container_width=True):
+            login_dialog()
+
     st.markdown("### Next-Generation Financial Forecasting with TMFG & LSTM")
     st.write("This platform utilizes state-of-the-art Deep Learning architectures to analyze global market trends, macroeconomics, and sector rotation.")
     
@@ -99,7 +115,6 @@ if page == "🏠 Home (About Model)":
     
     # Load real backtest results from CSV
     try:
-        # Load CSV
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "backtest_result.csv")
         
@@ -152,7 +167,6 @@ if page == "🏠 Home (About Model)":
         st.error(f"Failed to load backtest data: {e}")
         st.info("Please ensure 'backtest_result.csv' exists in the repository.")
 
-
     st.divider()
     
     # Section 2: Model Accuracy & Reliability
@@ -180,8 +194,6 @@ if page == "🏠 Home (About Model)":
     c_img, c_desc = st.columns([1, 1.5])
     
     with c_img:
-        # Check if the image file exists in the current directory before displaying
-        import os
         current_dir = os.path.dirname(os.path.abspath(__file__))
         img_path = os.path.join(current_dir, "confusion_matrix.png")
         
@@ -204,7 +216,6 @@ if page == "🏠 Home (About Model)":
 
     st.divider()
 
-    
     # Section 3: Model Architecture
     st.header("🧠 Core Engine: Hybrid-AI Architecture")
     
@@ -224,159 +235,155 @@ if page == "🏠 Home (About Model)":
 
     st.info("💡 **Why this matters:** Unlike traditional indicators (RSI, MACD), our AI understands the *context* of market movements.")
 
-# ==============================================================================
-# 5. Page: Dashboard (Private - Login Required)
-# ==============================================================================
-elif page == "🚀 AI Dashboard (Member Only)":
+# ------------------------------------------------------------------------------
+# PAGE: DASHBOARD (Member Only)
+# ------------------------------------------------------------------------------
+elif st.session_state["current_page"] == "Dashboard":
     
-    # Login Check
-    if check_password():
-        # [Edit 2] Display login information in the upper right corner (split screen)
-        top_col1, top_col2 = st.columns([4, 1])
-        
-        # --- Existing Dashboard Code Starts Here ---
-        market_option = st.sidebar.radio("Select Market", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"])
+    # [Navigation] Sidebar appears ONLY here
+    st.sidebar.title("Global AI Advisor")
+    st.sidebar.markdown(f"**User:** {st.session_state.get('logged_in_user', 'Member')}")
+    
+    market_option = st.sidebar.radio("Select Market", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"])
+    
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Log Out"):
+        logout()
 
-        with top_col1:
-            st.title(f"🤖 AI Dashboard: {market_option}")
-            st.caption(f"Real-time analysis powered by TMFG-LSTM Model.")
-        
-        with top_col2:
-            #  Display login information in the upper right corner
-            user_id = st.session_state.get("logged_in_user", "Member")
-            st.markdown(f"<div style='text-align: right; padding-top: 20px;'>👤 <b>{user_id}</b> logged in</div>", unsafe_allow_html=True)
+    # Dashboard Content
+    top_col1, top_col2 = st.columns([4, 1])
+    
+    with top_col1:
+        st.title(f"🤖 AI Dashboard: {market_option}")
+        st.caption(f"Real-time analysis powered by TMFG-LSTM Model.")
+    
+    with top_col2:
+        # Display login info
+        user_id = st.session_state.get("logged_in_user", "Member")
+        st.markdown(f"<div style='text-align: right; padding-top: 20px;'>👤 <b>{user_id}</b></div>", unsafe_allow_html=True)
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # Market Settings
-        if market_option == "NASDAQ (QQQ)":
-            TARGET_NAME = "NASDAQ 100 (QQQ)"
-            IDX_TICKER = "QQQ"
-            LEV_LONG = "QLD (2x) / TQQQ (3x)"
-            LEV_SHORT = "QID (2x) / SQQQ (3x)"
-            INVEST_AMT = "$1,000"
-        elif market_option == "S&P 500 (SPY)":
-            TARGET_NAME = "S&P 500 (SPY)"
-            IDX_TICKER = "SPY"
-            LEV_LONG = "SSO (2x) / UPRO (3x)"
-            LEV_SHORT = "SDS (2x) / SPXU (3x)"
-            INVEST_AMT = "$1,000"
-        else: 
-            TARGET_NAME = "KOSPI 200 (KOSPI)"
-            IDX_TICKER = "^KS11" 
-            LEV_LONG = "KODEX Leverage (122630)"
-            LEV_SHORT = "KODEX 200 Futures Inverse 2X (252670)"
-            INVEST_AMT = "1,000,000 KRW"
+    # Market Settings
+    if market_option == "NASDAQ (QQQ)":
+        TARGET_NAME = "NASDAQ 100 (QQQ)"
+        IDX_TICKER = "QQQ"
+        LEV_LONG = "QLD (2x) / TQQQ (3x)"
+        LEV_SHORT = "QID (2x) / SQQQ (3x)"
+        INVEST_AMT = "$1,000"
+    elif market_option == "S&P 500 (SPY)":
+        TARGET_NAME = "S&P 500 (SPY)"
+        IDX_TICKER = "SPY"
+        LEV_LONG = "SSO (2x) / UPRO (3x)"
+        LEV_SHORT = "SDS (2x) / SPXU (3x)"
+        INVEST_AMT = "$1,000"
+    else: 
+        TARGET_NAME = "KOSPI 200 (KOSPI)"
+        IDX_TICKER = "^KS11" 
+        LEV_LONG = "KODEX Leverage (122630)"
+        LEV_SHORT = "KODEX 200 Futures Inverse 2X (252670)"
+        INVEST_AMT = "1,000,000 KRW"
 
-        latest_data = load_latest_analysis(market_option)
+    latest_data = load_latest_analysis(market_option)
 
-        col1, col2 = st.columns([1, 1.5])
+    col1, col2 = st.columns([1, 1.5])
 
-        with col1:
-            if latest_data:
-                date_str = convert_utc_to_kst(latest_data['created_at'])
-                
-                final_prob = latest_data['final_prob']
-                news_score_val = latest_data['news_score']
-                
-                up_prob = final_prob
-                remaining = 1.0 - up_prob
-                down_prob = remaining * 0.5 
-                hold_prob = remaining * 0.5 
-                
-                st.info(f"📅 **Last Update:** {date_str}")
-                
-                m1, m2, m3 = st.columns(3)
-                m1.metric("📈 Bullish", f"{up_prob*100:.1f}%")
-                m2.metric("📉 Bearish", f"{down_prob*100:.1f}%") 
-                m3.metric("➖ Neutral", f"{hold_prob*100:.1f}%")
-                
-                decision = "HOLD (Neutral)"
-                color = "gray"
-                if up_prob >= 0.45:
-                    decision = "BUY"
-                    color = "green"
-                elif up_prob <= 0.2:
-                    decision = "SELL / Inverse"
-                    color = "red"
-                    
-                st.markdown(f"### 📢 AI Signal: :{color}[**{decision}**]")
-                
-                with st.expander("💡 Execution Strategy", expanded=True):
-                    st.markdown(f"""
-                    **Ref Date: {date_str}**
-                    * **BUY:** Accumulate {LEV_LONG}
-                    * **SELL:** Accumulate {LEV_SHORT}
-                    * **HOLD:** No Action.
-                    """)
-                    
-                if st.button("🔄 Refresh"):
-                    st.rerun()
-            else:
-                st.warning("⚠️ No data available.")
-
-        with col2:
-            st.write(f"📊 **{TARGET_NAME} Price Action**")
-            try:
-                with st.spinner("Loading chart..."):
-                    chart_df = yf.download(IDX_TICKER, period="6mo", progress=False, auto_adjust=True)
-                
-                if not chart_df.empty:
-                    if isinstance(chart_df.columns, pd.MultiIndex):
-                        try: chart_df = chart_df.xs(IDX_TICKER, axis=1, level=0)
-                        except: chart_df.columns = chart_df.columns.get_level_values(0)
-
-                    if 'Close' in chart_df.columns:
-                        chart_data = chart_df['Close'].replace(0, np.nan).dropna()
-                        current_price = chart_data.iloc[-1]
-                        
-                        # [Edit 3] Added AI predicted return display and caption (right below Price Metric)
-                        st.metric(f"Price ({IDX_TICKER})", f"{current_price:,.2f}")
-
-                        recent_volatility = chart_data.pct_change().tail(30).std()
-                        if np.isnan(recent_volatility) or recent_volatility == 0: recent_volatility = 0.01
-
-                        fig = go.Figure()
-                        fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#1f77b4', width=2)))
-
-                        if latest_data:
-                            # [Fixed Logic] Graph direction matches Signal (0.45 Threshold)
-                            THRESHOLD = 0.45
-                            up_p = latest_data['final_prob']
-                            diff = up_p - THRESHOLD
-                            expected_move = diff * recent_volatility * 3.0 # Multiplier increased for visibility
-                            
-                            trend_color = 'gray'
-                            if expected_move > 0: trend_color = 'green'
-                            elif expected_move < 0: trend_color = 'red'
-
-                            last_date = chart_data.index[-1]
-                            future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
-                            future_prices = [current_price * ((1 + expected_move) ** i) for i in range(0, 6)]
-                            
-                            fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='AI Forecast', line=dict(color=trend_color, width=3, dash='dot')))
-                            
-                            # [Edit 3 Continued] Calculating the predicted return
-                            total_return = (future_prices[-1] / current_price - 1) * 100
-                            st.caption(f"💡 AI Prob-based 5-Day Forecast: **{total_return:+.2f}%**")
-                        
-                        fig.update_layout(xaxis_title="Date", yaxis_title="Price", template="plotly_dark", height=400, margin=dict(l=20, r=20, t=40, b=20))
-                        st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"Chart Error: {e}")
-
-        # Sentiment Section (Placeholder)
-        st.markdown("---")
-        st.subheader("📰 Market Sentiment & Macro")
+    with col1:
         if latest_data:
-            nc1, nc2 = st.columns([1, 3])
-            with nc1:
-                st.metric("Sentiment Score", f"{news_score_val} / 100")
-            with nc2:
-                st.info("AI News Summary: The feature is currently aggregating global financial news...")
+            date_str = convert_utc_to_kst(latest_data['created_at'])
+            
+            final_prob = latest_data['final_prob']
+            news_score_val = latest_data['news_score']
+            
+            up_prob = final_prob
+            remaining = 1.0 - up_prob
+            down_prob = remaining * 0.5 
+            hold_prob = remaining * 0.5 
+            
+            st.info(f"📅 **Last Update:** {date_str}")
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("📈 Bullish", f"{up_prob*100:.1f}%")
+            m2.metric("📉 Bearish", f"{down_prob*100:.1f}%") 
+            m3.metric("➖ Neutral", f"{hold_prob*100:.1f}%")
+            
+            decision = "HOLD (Neutral)"
+            color = "gray"
+            if up_prob >= 0.45:
+                decision = "BUY"
+                color = "green"
+            elif up_prob <= 0.2:
+                decision = "SELL / Inverse"
+                color = "red"
+                
+            st.markdown(f"### 📢 AI Signal: :{color}[**{decision}**]")
+            
+            with st.expander("💡 Execution Strategy", expanded=True):
+                st.markdown(f"""
+                **Ref Date: {date_str}**
+                * **BUY:** Accumulate {LEV_LONG}
+                * **SELL:** Accumulate {LEV_SHORT}
+                * **HOLD:** No Action.
+                """)
+                
+            if st.button("🔄 Refresh"):
+                st.rerun()
+        else:
+            st.warning("⚠️ No data available.")
 
+    with col2:
+        st.write(f"📊 **{TARGET_NAME} Price Action**")
+        try:
+            with st.spinner("Loading chart..."):
+                chart_df = yf.download(IDX_TICKER, period="6mo", progress=False, auto_adjust=True)
+            
+            if not chart_df.empty:
+                if isinstance(chart_df.columns, pd.MultiIndex):
+                    try: chart_df = chart_df.xs(IDX_TICKER, axis=1, level=0)
+                    except: chart_df.columns = chart_df.columns.get_level_values(0)
 
+                if 'Close' in chart_df.columns:
+                    chart_data = chart_df['Close'].replace(0, np.nan).dropna()
+                    current_price = chart_data.iloc[-1]
+                    
+                    st.metric(f"Price ({IDX_TICKER})", f"{current_price:,.2f}")
 
+                    recent_volatility = chart_data.pct_change().tail(30).std()
+                    if np.isnan(recent_volatility) or recent_volatility == 0: recent_volatility = 0.01
 
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#1f77b4', width=2)))
 
+                    if latest_data:
+                        THRESHOLD = 0.45
+                        up_p = latest_data['final_prob']
+                        diff = up_p - THRESHOLD
+                        expected_move = diff * recent_volatility * 3.0 
+                        
+                        trend_color = 'gray'
+                        if expected_move > 0: trend_color = 'green'
+                        elif expected_move < 0: trend_color = 'red'
 
+                        last_date = chart_data.index[-1]
+                        future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
+                        future_prices = [current_price * ((1 + expected_move) ** i) for i in range(0, 6)]
+                        
+                        fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='AI Forecast', line=dict(color=trend_color, width=3, dash='dot')))
+                        
+                        total_return = (future_prices[-1] / current_price - 1) * 100
+                        st.caption(f"💡 AI Prob-based 5-Day Forecast: **{total_return:+.2f}%**")
+                    
+                    fig.update_layout(xaxis_title="Date", yaxis_title="Price", template="plotly_dark", height=400, margin=dict(l=20, r=20, t=40, b=20))
+                    st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Chart Error: {e}")
+
+    # Sentiment Section (Placeholder)
+    st.markdown("---")
+    st.subheader("📰 Market Sentiment & Macro")
+    if latest_data:
+        nc1, nc2 = st.columns([1, 3])
+        with nc1:
+            st.metric("Sentiment Score", f"{news_score_val} / 100")
+        with nc2:
+            st.info("AI News Summary: The feature is currently aggregating global financial news...")
