@@ -161,7 +161,7 @@ if st.session_state["current_page"] == "Home":
             else:
                 st.warning(f"⚠️ AI underperformed the market by **{alpha:.2f}%p**")
                 
-            st.caption("*Based on actual backtesting data (Last 365 days).*")
+            st.caption("*Based on actual backtesting data (Dec.2024 - Dec.2025).*")
 
     except Exception as e:
         st.error(f"Failed to load backtest data: {e}")
@@ -387,3 +387,4 @@ elif st.session_state["current_page"] == "Dashboard":
             st.metric("Sentiment Score", f"{news_score_val} / 100")
         with nc2:
             st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
