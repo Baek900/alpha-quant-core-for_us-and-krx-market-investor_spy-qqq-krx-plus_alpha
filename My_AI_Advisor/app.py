@@ -397,59 +397,67 @@ elif st.session_state["current_page"] == "Dashboard":
                     recent_volatility = chart_data.pct_change().tail(30).std()
                     if np.isnan(recent_volatility) or recent_volatility == 0: recent_volatility = 0.01
 
+                    
                     # Calculate expected fluctuations
                     if latest_data:
                         THRESHOLD = 0.45
                         diff = latest_data['final_prob'] - THRESHOLD
-                        expected_move = diff * recent_volatility * 3.0 
+                        daily_expected_move = diff * recent_volatility * 1.5 
                         
-                        # Expected price in 5 days
-                        future_price_5d = current_price * (1 + expected_move)
-                        total_return = expected_move * 100
+                        # price of D+5
+                        future_price_5d = current_price * ((1 + daily_expected_move) ** 5)
+                        
+                        # Rate of 5days
+                        # 1일치(expected_move)가 아니라, (5일 뒤 가격 / 현재가 - 1)로 계산해야 정확함
+                        total_return = (future_price_5d / current_price - 1) * 100
+                        
                     else:
-                        expected_move = 0
+                        daily_expected_move = 0
                         future_price_5d = current_price
                         total_return = 0
 
                     
-                    # 1. Calculate the previous day's change in the Current Price (added to balance box heights)
+                    # Current Price's Calculating the rate of change compared to the previous day (for box height balance)
                     daily_ret = 0
                     if len(chart_data) >= 2:
                         daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
 
-                    # 2. Screen display (modify the size and labels of Current Price and AI Target)
                     pc1, pc2 = st.columns(2)
-                    
                     with pc1:
-                        # Add delta to Current Price to align height with AI Target
+                        # Current Price (add delta to adjust height)
                         st.metric(
                             label="Current Price", 
                             value=f"{current_price:,.2f}", 
-                            delta=f"{daily_ret:+.2f}% (Daily)" 
+                            delta=f"{daily_ret:+.2f}% (Daily)"
                         )
-                        
                     with pc2:
-                        # Changed the label to "5 Days Later" as requested
+                        # AI Target (5 Days Later)
+                        # value is the 5-day compounded value, and delta is the 5-day total return.
                         st.metric(
                             label="AI Target (5 Days Later)", 
                             value=f"{future_price_5d:,.2f}", 
-                            delta=f"{total_return:+.2f}%"
+                            delta=f"{total_return:+.2f}% (5d Exp.)"
                         )
-                  
+
+                    # Draw chart
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=2)))
 
                     if latest_data:
                         trend_color = '#9CA3AF'
-                        if expected_move > 0: trend_color = '#00E396'
-                        elif expected_move < 0: trend_color = '#FF4560'
+                        if total_return > 0: trend_color = '#00E396'
+                        elif total_return < 0: trend_color = '#FF4560'
 
                         last_date = chart_data.index[-1]
+                        # Generate date data for charts
                         future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
-                        future_prices = [current_price * ((1 + expected_move) ** i) for i in range(0, 6)]
+                        
+                        # Data for chart drawing has also been consistently revised.
+                        # Using daily_expected_move, draw sequentially from 0 to 5th power
+                        future_prices = [current_price * ((1 + daily_expected_move) ** i) for i in range(0, 6)]
                         
                         fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=3, dash='dot')))
-                    
+
                     fig.update_layout(
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
@@ -471,6 +479,7 @@ elif st.session_state["current_page"] == "Dashboard":
             st.metric("Sentiment Score", f"{latest_data['news_score']}", delta="Neutral")
         with nc2:
             st.info("Live News Aggregation: System is processing global financial feeds...")
+
 
 
 
