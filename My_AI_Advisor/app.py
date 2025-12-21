@@ -11,6 +11,28 @@ import os
 from strategy_logic import get_strategy_text
 
 # ==============================================================================
+# 0. Market Statistics (Historical Daily Avg Return for 5-Day Period)
+# ==============================================================================
+# Define the probability data (actual daily average return) provided here.
+MARKET_STATS = {
+    "S&P 500 (SPY)": {
+        "bear": -0.005482, 
+        "neut": 0.000151, 
+        "bull": 0.004402
+    },
+    "NASDAQ (QQQ)": {
+        "bear": -0.006119, 
+        "neut": 0.000125, 
+        "bull": 0.005435
+    },
+    "KOSPI (Korea)": {
+        "bear": -0.002751, 
+        "neut": -0.001029, 
+        "bull": 0.002401
+    }
+}
+
+# ==============================================================================
 # 1. Configuration & Custom CSS (The "Modern Fintech" Look)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
@@ -162,7 +184,6 @@ if st.session_state["current_page"] == "Home":
         st.markdown("<h1 style='font-size: 3rem; font-weight: 800; letter-spacing: -1px;'>Global Asset Advisor</h1>", unsafe_allow_html=True)
     
     with col_login:
-        # [Restored] Key Emoji for Login Button
         if st.button("🔑 Log In", use_container_width=True):
             login_dialog()
 
@@ -219,7 +240,7 @@ if st.session_state["current_page"] == "Home":
 
     st.divider()
     
-    # Section 2: Model Reliability (Modified: Removed Confusion Matrix, Added Recall)
+    # Section 2: Model Reliability
     st.markdown("#### Model Reliability Metrics")
     st.caption("Validation on unseen test data (2025) | SPY Model")
 
@@ -234,13 +255,12 @@ if st.session_state["current_page"] == "Home":
         st.caption("Minimizes false positives in uptrends.")
         
     with col_m3:
-        # [Modified] Replaced F1-Score with Recall
         st.metric(label="Recall (Uptrend)", value="55.0%", delta="Opportunity Capture")
         st.caption("Captures the majority of market rallies.")
 
     st.divider()
 
-    # Section 3: Architecture (Clean Cards)
+    # Section 3: Architecture
     st.markdown("#### System Architecture")
     
     ac1, ac2 = st.columns(2)
@@ -257,7 +277,7 @@ if st.session_state["current_page"] == "Home":
 elif st.session_state["current_page"] == "Dashboard":
     
     # Sidebar
-    st.sidebar.markdown("### Member Menu") # Client -> Member
+    st.sidebar.markdown("### Member Menu") 
     st.sidebar.markdown(f"User: **{st.session_state.get('logged_in_user', 'Member')}**")
     
     market_option = st.sidebar.selectbox("Select Asset Class", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]) 
@@ -286,21 +306,23 @@ elif st.session_state["current_page"] == "Dashboard":
     else: 
         IDX_TICKER, LEV_LONG, LEV_SHORT = "^KS11", "KODEX Leverage", "KODEX 200 Inverse 2X"
         
-# 1. Load Data
+    # 1. Load Data
     latest_data, prev_data = load_latest_analysis(market_option)
 
     col1, col2 = st.columns([1, 1.5])
 
     # =========================================================
-    # [Left Column] Signal and Strategy Display (Modified)
+    # [Left Column] Signal and Strategy Display
     # =========================================================
     with col1:
         if latest_data:
             date_str = convert_utc_to_kst(latest_data['created_at'])
             
             up_prob = latest_data['final_prob']
-            down_prob = (1.0 - up_prob) * 0.5
-            hold_prob = (1.0 - up_prob) * 0.5
+            
+            # Calculate remaining probabilities automatically if not in DB.
+            down_prob = latest_data.get('prob_down', (1.0 - up_prob) * 0.5)
+            hold_prob = latest_data.get('prob_neutral', (1.0 - up_prob) * 0.5)
             
             st.markdown(f"**Analysis Time:** {date_str}")
             
@@ -331,14 +353,13 @@ elif st.session_state["current_page"] == "Dashboard":
             prev_signal = prev_data['action'] if prev_data else None
             strategy_text = get_strategy_text(prev_signal, decision)
 
-            # [Revision Points 1 & 2] Secured space and improved readability
             with st.expander("View Strategy Details", expanded=True):
-                st.write("") # 상단 여백 추가
+                st.write("") 
                 
                 # Signal change indication
                 st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
                 
-                #[Design change] Use a readable custom box instead of st.info
+                # Strategy Description Box
                 st.markdown(f"""
                 <div style="
                     margin-top: 10px;
@@ -376,7 +397,7 @@ elif st.session_state["current_page"] == "Dashboard":
             st.warning("Data syncing...")
 
     # =========================================================
-    # [Right Column] Prices and Forecasts (Revised)
+    # [Right Column] Prices and Forecasts (New Weighted Logic)
     # =========================================================
     with col2:
         st.markdown(f"**Price Action & Forecast ({IDX_TICKER})**")
@@ -393,22 +414,29 @@ elif st.session_state["current_page"] == "Dashboard":
                     chart_data = chart_df['Close'].replace(0, np.nan).dropna()
                     current_price = chart_data.iloc[-1]
                     
-                    # Move the prediction logic before drawing the chart (for displaying metrics)
-                    recent_volatility = chart_data.pct_change().tail(30).std()
-                    if np.isnan(recent_volatility) or recent_volatility == 0: recent_volatility = 0.01
-
-                    
-                    # Calculate expected fluctuations
+                    # ------------------------------------------------------------
+                    # [NEW] Weighted Average Forecast Logic (Weighted Expected Return)
+                    # ------------------------------------------------------------
                     if latest_data:
-                        THRESHOLD = 0.45
-                        diff = latest_data['final_prob'] - THRESHOLD
-                        daily_expected_move = diff * recent_volatility * 1.5 
+                        # 1. Get statistics (daily average return) for the currently selected market.
+                        # Default is SPY.
+                        stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
                         
-                        # price of D+5
+                        # 2. Get model probabilities.
+                        p_up = latest_data['final_prob']
+                        # Calculate automatically if not in DB.
+                        p_down = latest_data.get('prob_down', (1.0 - p_up) * 0.5)
+                        p_neutral = latest_data.get('prob_neutral', (1.0 - p_up) * 0.5)
+
+                        # 3. [Core] Calculate Weighted Average Daily Return (Daily Expected Return).
+                        daily_expected_move = (p_down * stats['bear']) + \
+                                              (p_neutral * stats['neut']) + \
+                                              (p_up * stats['bull'])
+                        
+                        # 4. Calculate price after 5 days (applying compound interest).
                         future_price_5d = current_price * ((1 + daily_expected_move) ** 5)
                         
-                        # Rate of 5days
-                        # 1일치(expected_move)가 아니라, (5일 뒤 가격 / 현재가 - 1)로 계산해야 정확함
+                        # 5. Total expected return for 5 days.
                         total_return = (future_price_5d / current_price - 1) * 100
                         
                     else:
@@ -416,15 +444,17 @@ elif st.session_state["current_page"] == "Dashboard":
                         future_price_5d = current_price
                         total_return = 0
 
-                    
-                    # Current Price's Calculating the rate of change compared to the previous day (for box height balance)
+                    # ------------------------------------------------------------
+                    # UI Display: Unify height and apply labels
+                    # ------------------------------------------------------------
+                    # Calculate daily return of Current Price (to balance box height).
                     daily_ret = 0
                     if len(chart_data) >= 2:
                         daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
 
                     pc1, pc2 = st.columns(2)
                     with pc1:
-                        # Current Price (add delta to adjust height)
+                        # Current Price (Height adjustment: add delta).
                         st.metric(
                             label="Current Price", 
                             value=f"{current_price:,.2f}", 
@@ -432,7 +462,7 @@ elif st.session_state["current_page"] == "Dashboard":
                         )
                     with pc2:
                         # AI Target (5 Days Later)
-                        # value is the 5-day compounded value, and delta is the 5-day total return.
+                        # Value: Forecasted price in 5 days, Delta: Total expected return for 5 days.
                         st.metric(
                             label="AI Target (5 Days Later)", 
                             value=f"{future_price_5d:,.2f}", 
@@ -449,11 +479,9 @@ elif st.session_state["current_page"] == "Dashboard":
                         elif total_return < 0: trend_color = '#FF4560'
 
                         last_date = chart_data.index[-1]
-                        # Generate date data for charts
                         future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
                         
-                        # Data for chart drawing has also been consistently revised.
-                        # Using daily_expected_move, draw sequentially from 0 to 5th power
+                        # Calculate chart plotting data based on daily_expected_move using compound interest.
                         future_prices = [current_price * ((1 + daily_expected_move) ** i) for i in range(0, 6)]
                         
                         fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=3, dash='dot')))
@@ -470,6 +498,7 @@ elif st.session_state["current_page"] == "Dashboard":
                     st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Chart Error: {e}")
+            
     # News Section
     st.markdown("---")
     st.markdown("**Global Sentiment & Macro Insights**")
@@ -479,7 +508,3 @@ elif st.session_state["current_page"] == "Dashboard":
             st.metric("Sentiment Score", f"{latest_data['news_score']}", delta="Neutral")
         with nc2:
             st.info("Live News Aggregation: System is processing global financial feeds...")
-
-
-
-
