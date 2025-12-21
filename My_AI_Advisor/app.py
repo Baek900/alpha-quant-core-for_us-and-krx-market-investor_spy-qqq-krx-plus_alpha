@@ -60,7 +60,7 @@ def check_password():
             st.session_state["password_correct"] = True
             
             # [Edit 1] When login is successful, store the ID in a permanent variable instead of the widget variable that disappears.
-               st.session_state["logged_in_user"] = st.session_state["username"]
+            st.session_state["logged_in_user"] = st.session_state["username"]
             
             del st.session_state["password"]
         else:
@@ -321,5 +321,6 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
 
 
