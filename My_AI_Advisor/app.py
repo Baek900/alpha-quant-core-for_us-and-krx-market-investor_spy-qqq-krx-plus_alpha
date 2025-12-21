@@ -211,7 +211,9 @@ with col2:
                 if latest_data:
                     # Expected move based on Bullish Probability
                     up_p = latest_data['final_prob']
-                    expected_move = (up_p - 0.5) * recent_volatility * 1.5 
+                    THRESHOLD = 0.45
+                    diff = up_p - THRESHOLD
+                    expected_move = diff * recent_volatility * 2.0
                     
                     trend_color = 'gray'
                     if expected_move > 0.0005: trend_color = 'green'
@@ -270,3 +272,4 @@ if latest_data:
         """)
 else:
     st.write("No data available.")
+
