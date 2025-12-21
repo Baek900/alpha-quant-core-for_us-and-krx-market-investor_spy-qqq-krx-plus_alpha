@@ -285,11 +285,15 @@ elif st.session_state["current_page"] == "Dashboard":
         IDX_TICKER, LEV_LONG, LEV_SHORT = "SPY", "SSO (2x) / UPRO (3x)", "SDS (2x) / SPXU (3x)"
     else: 
         IDX_TICKER, LEV_LONG, LEV_SHORT = "^KS11", "KODEX Leverage", "KODEX 200 Inverse 2X"
-
+        
+# 1. Load Data
     latest_data, prev_data = load_latest_analysis(market_option)
 
     col1, col2 = st.columns([1, 1.5])
 
+    # =========================================================
+    # [Left Column] Signal and Strategy Display (Modified)
+    # =========================================================
     with col1:
         if latest_data:
             date_str = convert_utc_to_kst(latest_data['created_at'])
@@ -306,7 +310,7 @@ elif st.session_state["current_page"] == "Dashboard":
             m2.metric("Bearish", f"{down_prob*100:.1f}%") 
             m3.metric("Neutral", f"{hold_prob*100:.1f}%")
             
-
+            # Primary Signal Decision
             decision = "HOLD"
             d_color = "#9CA3AF" # Grey
             if up_prob >= 0.45:
@@ -323,30 +327,57 @@ elif st.session_state["current_page"] == "Dashboard":
             </div>
             """, unsafe_allow_html=True)
             
-
+            # Create strategy text
             prev_signal = prev_data['action'] if prev_data else None
             strategy_text = get_strategy_text(prev_signal, decision)
 
+            # [Revision Points 1 & 2] Secured space and improved readability
             with st.expander("View Strategy Details", expanded=True):
-
+                st.write("") # 상단 여백 추가
+                
+                # Signal change indication
                 st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
                 
-
-                st.info(strategy_text)
-                
-
+                #[Design change] Use a readable custom box instead of st.info
                 st.markdown(f"""
-                <div style='font-size: 0.8rem; color: #888; margin-top: 10px;'>
+                <div style="
+                    margin-top: 10px;
+                    margin-bottom: 15px;
+                    padding: 15px;
+                    background-color: #2E2E3E; 
+                    border-left: 4px solid #7C3AED; 
+                    border-radius: 4px;
+                ">
+                    <p style="
+                        color: #E0E0E0; 
+                        font-size: 1rem; 
+                        line-height: 1.6; 
+                        margin: 0;
+                        font-weight: 500;
+                    ">
+                        {strategy_text}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Leverage Information
+                st.markdown(f"""
+                <div style='font-size: 0.8rem; color: #999; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;'>
                 * 📈 <b>Long Target:</b> {LEV_LONG}<br>
                 * 📉 <b>Short Target:</b> {LEV_SHORT}
                 </div>
                 """, unsafe_allow_html=True)
+                
+                st.write("")
                 
             if st.button("Refresh Analysis"):
                 st.rerun()
         else:
             st.warning("Data syncing...")
 
+    # =========================================================
+    # [Right Column] Prices and Forecasts (Revised)
+    # =========================================================
     with col2:
         st.markdown(f"**Price Action & Forecast ({IDX_TICKER})**")
         try:
@@ -362,19 +393,36 @@ elif st.session_state["current_page"] == "Dashboard":
                     chart_data = chart_df['Close'].replace(0, np.nan).dropna()
                     current_price = chart_data.iloc[-1]
                     
-                    st.metric(f"Current Price", f"{current_price:,.2f}")
-
+                    # Move the prediction logic before drawing the chart (for displaying metrics)
                     recent_volatility = chart_data.pct_change().tail(30).std()
                     if np.isnan(recent_volatility) or recent_volatility == 0: recent_volatility = 0.01
 
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=2)))
-
+                    # Calculate expected fluctuations
                     if latest_data:
                         THRESHOLD = 0.45
                         diff = latest_data['final_prob'] - THRESHOLD
                         expected_move = diff * recent_volatility * 3.0 
                         
+                        # Expected price in 5 days
+                        future_price_5d = current_price * (1 + expected_move)
+                        total_return = expected_move * 100
+                    else:
+                        expected_move = 0
+                        future_price_5d = current_price
+                        total_return = 0
+
+                    # Current price and target price placed side by side
+                    pc1, pc2 = st.columns(2)
+                    with pc1:
+                        st.metric(f"Current Price", f"{current_price:,.2f}")
+                    with pc2:
+                        st.metric(f"AI Target (5D)", f"{future_price_5d:,.2f}", delta=f"{total_return:+.2f}%")
+
+                    # Draw chart
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=2)))
+
+                    if latest_data:
                         trend_color = '#9CA3AF'
                         if expected_move > 0: trend_color = '#00E396'
                         elif expected_move < 0: trend_color = '#FF4560'
@@ -384,9 +432,6 @@ elif st.session_state["current_page"] == "Dashboard":
                         future_prices = [current_price * ((1 + expected_move) ** i) for i in range(0, 6)]
                         
                         fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=3, dash='dot')))
-                        
-                        total_return = (future_prices[-1] / current_price - 1) * 100
-                        st.caption(f"AI Projected Move (5D): **{total_return:+.2f}%**")
                     
                     fig.update_layout(
                         paper_bgcolor='rgba(0,0,0,0)',
@@ -400,7 +445,6 @@ elif st.session_state["current_page"] == "Dashboard":
                     st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Chart Error: {e}")
-
     # News Section
     st.markdown("---")
     st.markdown("**Global Sentiment & Macro Insights**")
@@ -410,4 +454,5 @@ elif st.session_state["current_page"] == "Dashboard":
             st.metric("Sentiment Score", f"{latest_data['news_score']}", delta="Neutral")
         with nc2:
             st.info("Live News Aggregation: System is processing global financial feeds...")
+
 
