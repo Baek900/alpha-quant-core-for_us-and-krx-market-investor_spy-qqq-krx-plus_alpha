@@ -178,7 +178,7 @@ elif page == "🚀 AI Dashboard (Member Only)":
     
     # Login Check
     if check_password():
-        # [수정 2] 우측 상단에 로그인 정보 표시 (화면 분할)
+        # [Edit 2] Display login information in the upper right corner (split screen)
         top_col1, top_col2 = st.columns([4, 1])
         
         # --- Existing Dashboard Code Starts Here ---
@@ -189,7 +189,7 @@ elif page == "🚀 AI Dashboard (Member Only)":
             st.caption(f"Real-time analysis powered by TMFG-LSTM Model.")
         
         with top_col2:
-            # 우측 상단 사용자 표시
+            #  Display login information in the upper right corner
             user_id = st.session_state.get("logged_in_user", "Member")
             st.markdown(f"<div style='text-align: right; padding-top: 20px;'>👤 <b>{user_id}</b> logged in</div>", unsafe_allow_html=True)
 
@@ -277,7 +277,7 @@ elif page == "🚀 AI Dashboard (Member Only)":
                         chart_data = chart_df['Close'].replace(0, np.nan).dropna()
                         current_price = chart_data.iloc[-1]
                         
-                        # [수정 3] AI 예측 수익률 표시 및 캡션 추가 (Price Metric 바로 아래)
+                        # [Edit 3] Added AI predicted return display and caption (right below Price Metric)
                         st.metric(f"Price ({IDX_TICKER})", f"{current_price:,.2f}")
 
                         recent_volatility = chart_data.pct_change().tail(30).std()
@@ -303,7 +303,7 @@ elif page == "🚀 AI Dashboard (Member Only)":
                             
                             fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='AI Forecast', line=dict(color=trend_color, width=3, dash='dot')))
                             
-                            # [수정 3 계속] 예측 수익률 계산
+                            # [Edit 3 Continued] Calculating the predicted return
                             total_return = (future_prices[-1] / current_price - 1) * 100
                             st.caption(f"💡 AI Prob-based 5-Day Forecast: **{total_return:+.2f}%**")
                         
@@ -321,4 +321,5 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
 
