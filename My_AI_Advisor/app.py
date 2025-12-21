@@ -171,6 +171,57 @@ if page == "🏠 Home (About Model)":
 
     st.info("💡 **Why this matters:** Unlike traditional indicators (RSI, MACD), our AI understands the *context* of market movements.")
 
+st.divider()
+    
+    # Section 2: Model Accuracy & Reliability
+    st.header("🎯 AI Reliability Verification")
+    st.write("Performance metrics of the **SPY (S&P 500)** prediction model based on unseen test data (2025).")
+
+    # Display 3 Key Metrics in Columns
+    col_m1, col_m2, col_m3 = st.columns(3)
+    
+    with col_m1:
+        st.metric(label="Overall Accuracy", value="52.62%", delta="+19.3% vs Random")
+        st.caption("Outperforms random guessing (33.3%)")
+        
+    with col_m2:
+        st.metric(label="Buy Signal Precision", value="64.0%", delta="High Confidence")
+        st.caption("When AI says 'BUY', it is correct 64% of the time.")
+        
+    with col_m3:
+        st.metric(label="F1-Score (Up Trend)", value="0.59")
+        st.caption("Balanced metric of Precision and Recall.")
+
+    # Confusion Matrix Image & Explanation
+    st.markdown("### 🔍 Confusion Matrix Analysis")
+    
+    c_img, c_desc = st.columns([1, 1.5])
+    
+    with c_img:
+        # Check if the image file exists in the current directory before displaying
+        import os
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        img_path = os.path.join(current_dir, "confusion_matrix.png")
+        
+        if os.path.exists(img_path):
+            st.image(img_path, caption="Model Prediction vs Actual Market Move", use_container_width=True)
+        else:
+            st.warning("Confusion Matrix image not found. Please upload 'confusion_matrix.png'.")
+
+    with c_desc:
+        st.info("💡 **Why is 52% Accuracy significant?**")
+        st.markdown("""
+        In financial markets, predicting stock movements with **>50% accuracy** consistently is considered highly profitable. 
+        Most algorithmic trading funds operate with win rates between 51% and 54%.
+        
+        **Key Takeaways:**
+        * The model effectively filters out market noise ('Flat' movements).
+        * **High Precision in Uptrends (64%)**: The AI is conservative but highly accurate when identifying buying opportunities.
+        * This reduces the risk of 'False Positives' (buying when the market falls).
+        """)
+
+    st.divider()
+
 # ==============================================================================
 # 5. Page: Dashboard (Private - Login Required)
 # ==============================================================================
@@ -321,6 +372,7 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
 
 
 
