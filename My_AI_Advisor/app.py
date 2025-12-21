@@ -13,7 +13,6 @@ from strategy_logic import get_strategy_text
 # ==============================================================================
 # 0. Market Statistics (Historical Daily Avg Return for 5-Day Period)
 # ==============================================================================
-# Define the probability data (actual daily average return) provided here.
 MARKET_STATS = {
     "S&P 500 (SPY)": {
         "bear": -0.005482, 
@@ -33,45 +32,54 @@ MARKET_STATS = {
 }
 
 # ==============================================================================
-# 1. Configuration & Custom CSS (The "Modern Fintech" Look)
+# 1. Configuration & Custom CSS (Forced Black Theme & Mobile Optimization)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
 
-# [CSS Injection] Override default Streamlit styles for a professional look
+# [CSS Injection] Force Black Theme & Remove Default Navigation
 st.markdown("""
     <style>
-        /* 1. Import Google Fonts (Inter) for a clean financial look */
+        /* 1. Font Import */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         
+        /* 2. Global Reset & Dark Theme Enforcement */
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
             color: #E0E0E0;
         }
+        
+        /* Force Background Color to Black */
+        .stApp {
+            background-color: #000000 !important;
+        }
 
-        /* 2. Metric Box Design: Styled as Cards */
+        /* 3. Hide Default Streamlit Elements (Header, Footer, Sidebar Button) */
+        header {visibility: hidden !important;}
+        footer {visibility: hidden !important;}
+        [data-testid="stSidebar"] {display: none !important;}
+        section[data-testid="stSidebar"] {display: none !important;}
+
+        /* 4. Metric Box Design (Cards) */
         div[data-testid="stMetric"] {
-            background-color: #1E1E2E; /* Dark Navy Background */
-            border: 1px solid #2E2E3E;
+            background-color: #121212 !important; /* Slightly lighter than black */
+            border: 1px solid #333333;
             padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        
         div[data-testid="stMetricLabel"] {
             font-size: 0.8rem !important;
-            color: #9CA3AF !important; /* Muted Grey Text */
+            color: #9CA3AF !important; 
         }
-
         div[data-testid="stMetricValue"] {
             font-size: 1.5rem !important;
             font-weight: 700 !important;
             color: #FFFFFF !important;
         }
 
-        /* 3. Button Styling */
+        /* 5. Button Styling */
         div.stButton > button {
             width: 100%;
-            background-color: #2563EB; /* Professional Blue */
+            background-color: #2563EB;
             color: white;
             border: none;
             border-radius: 6px;
@@ -80,18 +88,57 @@ st.markdown("""
         }
         div.stButton > button:hover {
             background-color: #1D4ED8;
+            color: white;
         }
 
-        /* 4. Hide default Streamlit header/footer */
-        header {visibility: hidden;}
-        footer {visibility: hidden;}
+        /* 6. Form Inputs (Selectbox, Text Input) Styling for Dark Mode */
+        div[data-baseweb="select"] > div {
+            background-color: #1E1E2E !important;
+            color: white !important;
+            border-color: #333 !important;
+        }
+        div[data-baseweb="input"] > div {
+            background-color: #1E1E2E !important;
+            color: white !important;
+            border-color: #333 !important;
+        }
+        div[data-baseweb="base-input"] {
+            background-color: #1E1E2E !important;
+        }
+        input {
+            color: white !important;
+        }
         
-        /* 5. Divider Style */
+        /* Dropdown Menu Items */
+        ul[data-testid="stSelectboxVirtualDropdown"] {
+            background-color: #1E1E2E !important;
+        }
+        li[role="option"] {
+            color: white !important;
+        }
+
+        /* 7. Expander Styling */
+        .streamlit-expanderHeader {
+            background-color: #1E1E2E !important;
+            color: #E0E0E0 !important;
+            border-radius: 4px;
+        }
+        div[data-testid="stExpanderDetails"] {
+            background-color: #121212 !important;
+            border: 1px solid #333;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
+
+        /* 8. Tab Styling (if used) */
+        button[data-baseweb="tab"] {
+            color: #E0E0E0 !important;
+        }
+        
+        /* 9. Divider */
         hr {
-            margin-top: 2rem;
-            margin-bottom: 2rem;
-            border: 0;
             border-top: 1px solid #333;
+            margin: 1.5rem 0;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -181,7 +228,7 @@ if st.session_state["current_page"] == "Home":
     col_header, col_login = st.columns([6, 1])
     
     with col_header:
-        st.markdown("<h1 style='font-size: 3rem; font-weight: 800; letter-spacing: -1px;'>Global Asset Advisor</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='font-size: 3rem; font-weight: 800; letter-spacing: -1px; color: white;'>Global Asset Advisor</h1>", unsafe_allow_html=True)
     
     with col_login:
         if st.button("🔑 Log In", use_container_width=True):
@@ -212,18 +259,18 @@ if st.session_state["current_page"] == "Home":
         final_bm_ret = market_returns.iloc[-1] * 100
         alpha = final_ai_ret - final_bm_ret
 
-        # Chart (Clean Style)
+        # Chart (Clean Style for Dark Mode)
         fig_bench = go.Figure()
         fig_bench.add_trace(go.Scatter(x=df.index, y=ai_returns, mode='lines', name='Alpha Strategy', line=dict(color='#00E396', width=2)))
-        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#4B5563', dash='dot')))
+        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#6B7280', dash='dot')))
         
         fig_bench.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', # Transparent background
+            paper_bgcolor='rgba(0,0,0,0)', 
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=0, r=0, t=30, b=0),
             xaxis=dict(showgrid=False, color='#888'),
             yaxis=dict(showgrid=True, gridcolor='#333', color='#888', tickformat='.0%'),
-            legend=dict(orientation="h", y=1.1),
+            legend=dict(orientation="h", y=1.1, font=dict(color="white")),
             height=350
         )
         
@@ -276,17 +323,26 @@ if st.session_state["current_page"] == "Home":
 # ------------------------------------------------------------------------------
 elif st.session_state["current_page"] == "Dashboard":
     
-    # Sidebar
-    st.sidebar.markdown("### Member Menu") 
-    st.sidebar.markdown(f"User: **{st.session_state.get('logged_in_user', 'Member')}**")
+    # [CUSTOM NAVBAR] Replaces the Sidebar
+    # This row will be fixed at the top of the main content area
+    nav_col1, nav_col2 = st.columns([3, 1])
     
-    market_option = st.sidebar.selectbox("Select Asset Class", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]) 
+    with nav_col1:
+        # Market Selector moved to top
+        market_option = st.selectbox(
+            "Select Market", 
+            ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"],
+            label_visibility="collapsed" # Hide label for cleaner look
+        )
     
-    st.sidebar.markdown("---")
-    if st.sidebar.button("Sign Out"):
-        logout()
+    with nav_col2:
+        # Logout Button moved to top right
+        if st.button("Sign Out"):
+            logout()
+    
+    st.divider()
 
-    # Dashboard Header
+    # Dashboard Content
     top_col1, top_col2 = st.columns([4, 1])
     
     with top_col1:
@@ -295,8 +351,6 @@ elif st.session_state["current_page"] == "Dashboard":
     
     with top_col2:
          st.markdown(f"<div style='text-align: right; color: #888;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
-
-    st.markdown("---")
 
     # Configuration Map
     if market_option == "NASDAQ (QQQ)":
@@ -365,7 +419,7 @@ elif st.session_state["current_page"] == "Dashboard":
                     margin-top: 10px;
                     margin-bottom: 15px;
                     padding: 15px;
-                    background-color: #2E2E3E; 
+                    background-color: #121212; 
                     border-left: 4px solid #7C3AED; 
                     border-radius: 4px;
                 ">
@@ -415,28 +469,20 @@ elif st.session_state["current_page"] == "Dashboard":
                     current_price = chart_data.iloc[-1]
                     
                     # ------------------------------------------------------------
-                    # [NEW] Weighted Average Forecast Logic (Weighted Expected Return)
+                    # [NEW] Weighted Average Forecast Logic
                     # ------------------------------------------------------------
                     if latest_data:
-                        # 1. Get statistics (daily average return) for the currently selected market.
-                        # Default is SPY.
                         stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
                         
-                        # 2. Get model probabilities.
                         p_up = latest_data['final_prob']
-                        # Calculate automatically if not in DB.
                         p_down = latest_data.get('prob_down', (1.0 - p_up) * 0.5)
                         p_neutral = latest_data.get('prob_neutral', (1.0 - p_up) * 0.5)
 
-                        # 3. [Core] Calculate Weighted Average Daily Return (Daily Expected Return).
                         daily_expected_move = (p_down * stats['bear']) + \
                                               (p_neutral * stats['neut']) + \
                                               (p_up * stats['bull'])
                         
-                        # 4. Calculate price after 5 days (applying compound interest).
                         future_price_5d = current_price * ((1 + daily_expected_move) ** 5)
-                        
-                        # 5. Total expected return for 5 days.
                         total_return = (future_price_5d / current_price - 1) * 100
                         
                     else:
@@ -445,24 +491,20 @@ elif st.session_state["current_page"] == "Dashboard":
                         total_return = 0
 
                     # ------------------------------------------------------------
-                    # UI Display: Unify height and apply labels
+                    # UI Display
                     # ------------------------------------------------------------
-                    # Calculate daily return of Current Price (to balance box height).
                     daily_ret = 0
                     if len(chart_data) >= 2:
                         daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
 
                     pc1, pc2 = st.columns(2)
                     with pc1:
-                        # Current Price (Height adjustment: add delta).
                         st.metric(
                             label="Current Price", 
                             value=f"{current_price:,.2f}", 
                             delta=f"{daily_ret:+.2f}% (Daily)"
                         )
                     with pc2:
-                        # AI Target (5 Days Later)
-                        # Value: Forecasted price in 5 days, Delta: Total expected return for 5 days.
                         st.metric(
                             label="AI Target (5 Days Later)", 
                             value=f"{future_price_5d:,.2f}", 
@@ -481,7 +523,6 @@ elif st.session_state["current_page"] == "Dashboard":
                         last_date = chart_data.index[-1]
                         future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
                         
-                        # Calculate chart plotting data based on daily_expected_move using compound interest.
                         future_prices = [current_price * ((1 + daily_expected_move) ** i) for i in range(0, 6)]
                         
                         fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=3, dash='dot')))
