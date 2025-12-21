@@ -411,14 +411,31 @@ elif st.session_state["current_page"] == "Dashboard":
                         future_price_5d = current_price
                         total_return = 0
 
-                    # Current price and target price placed side by side
-                    pc1, pc2 = st.columns(2)
-                    with pc1:
-                        st.metric(f"Current Price", f"{current_price:,.2f}")
-                    with pc2:
-                        st.metric(f"AI Target (5D)", f"{future_price_5d:,.2f}", delta=f"{total_return:+.2f}%")
+                    
+                    # 1. Calculate the previous day's change in the Current Price (added to balance box heights)
+                    daily_ret = 0
+                    if len(chart_data) >= 2:
+                        daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
 
-                    # Draw chart
+                    # 2. Screen display (modify the size and labels of Current Price and AI Target)
+                    pc1, pc2 = st.columns(2)
+                    
+                    with pc1:
+                        # Add delta to Current Price to align height with AI Target
+                        st.metric(
+                            label="Current Price", 
+                            value=f"{current_price:,.2f}", 
+                            delta=f"{daily_ret:+.2f}% (Daily)" 
+                        )
+                        
+                    with pc2:
+                        # Changed the label to "5 Days Later" as requested
+                        st.metric(
+                            label="AI Target (5 Days Later)", 
+                            value=f"{future_price_5d:,.2f}", 
+                            delta=f"{total_return:+.2f}%"
+                        )
+                  
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=2)))
 
@@ -454,5 +471,6 @@ elif st.session_state["current_page"] == "Dashboard":
             st.metric("Sentiment Score", f"{latest_data['news_score']}", delta="Neutral")
         with nc2:
             st.info("Live News Aggregation: System is processing global financial feeds...")
+
 
 
