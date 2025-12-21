@@ -88,30 +88,67 @@ if page == "🏠 Home (About Model)":
     
     st.divider()
 
-    # Section 1: Benchmark Performance (Mock-up for demonstration)
+# Section 1: Benchmark Performance (Real Backtest Data)
     st.header("🏆 Performance Benchmark (Backtest)")
-    st.write("Comparison of **AI Algorithm Strategy** vs. **Market Benchmark (S&P 500)** over the last 12 months.")
+    st.write("Comparison of **AI Algorithm Strategy** vs. **Market Benchmark (SPY)** over the last 12 months.")
     
-    # [Mock Data Generation for Chart]
-    dates = pd.date_range(start="2024-01-01", periods=100)
-    market_returns = np.cumsum(np.random.normal(0.0005, 0.01, 100)) # Random walk
-    ai_returns = np.cumsum(np.random.normal(0.0008, 0.009, 100)) # Slightly better mean
-    
-    fig_bench = go.Figure()
-    fig_bench.add_trace(go.Scatter(x=dates, y=ai_returns, mode='lines', name='AI Strategy', line=dict(color='green', width=3)))
-    fig_bench.add_trace(go.Scatter(x=dates, y=market_returns, mode='lines', name='S&P 500 (Benchmark)', line=dict(color='gray', dash='dot')))
-    fig_bench.update_layout(title="Cumulative Return Comparison (YTD)", xaxis_title="Date", yaxis_title="Return", template="plotly_dark", height=400)
-    
-    col_bench1, col_bench2 = st.columns([2, 1])
-    with col_bench1:
-        st.plotly_chart(fig_bench, use_container_width=True)
-    with col_bench2:
-        st.success("Target Alpha: **+15.4%**")
-        st.info("Sharpe Ratio: **1.85**")
-        st.warning("Max Drawdown: **-12.3%**")
-        st.caption("*Based on backtesting data (2020-2024). Past performance is not indicative of future results.*")
+    # [Modified] Load real backtest results from CSV
+    try:
+        # Load CSV
+        df = pd.read_csv("backtest_result.csv")
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.set_index('Date', inplace=True)
+        
+        # Convert to Percentage Return (Return relative to initial capital)
+        # Conversion required as CSV contains Equity values
+        initial_capital = df['Strategy'].iloc[0]
+        ai_returns = (df['Strategy'] - initial_capital) / initial_capital
+        market_returns = (df['Benchmark'] - initial_capital) / initial_capital
+        
+        dates = df.index
+        
+        # Calculate Final Performance
+        final_ai_ret = ai_returns.iloc[-1] * 100
+        final_bm_ret = market_returns.iloc[-1] * 100
+        alpha = final_ai_ret - final_bm_ret
 
-    st.divider()
+        # Draw Chart
+        fig_bench = go.Figure()
+        fig_bench.add_trace(go.Scatter(x=dates, y=ai_returns, mode='lines', name='AI Strategy', line=dict(color='#00FFA3', width=2)))
+        fig_bench.add_trace(go.Scatter(x=dates, y=market_returns, mode='lines', name='S&P 500 (Benchmark)', line=dict(color='gray', dash='dot')))
+        
+        # Configure Chart Layout
+        fig_bench.update_layout(
+            title="Cumulative Return Comparison (Last 1 Year)",
+            xaxis_title="Date",
+            yaxis_title="Return (0.1 = 10%)",
+            template="plotly_dark",
+            height=400,
+            yaxis_tickformat='.0%' # Format Y-axis as percentage
+        )
+        
+        col_bench1, col_bench2 = st.columns([2, 1])
+        with col_bench1:
+            st.plotly_chart(fig_bench, use_container_width=True)
+        with col_bench2:
+            # Display Metrics
+            diff_color = "normal"
+            # Use st.metric's delta for green color indication if alpha is positive
+            if alpha > 0: diff_color = "normal" 
+            
+            st.metric(label="AI Total Return", value=f"{final_ai_ret:+.2f}%", delta=f"{alpha:+.2f}% vs SPY")
+            st.metric(label="Benchmark Return", value=f"{final_bm_ret:+.2f}%")
+            
+            if alpha > 0:
+                st.success(f"✅ AI outperformed the market by **{alpha:.2f}%p**")
+            else:
+                st.warning(f"⚠️ AI underperformed the market by **{alpha:.2f}%p**")
+                
+            st.caption("*Based on actual backtesting data (Last 365 days).*")
+
+    except Exception as e:
+        st.error(f"Failed to load backtest data: {e}")
+        st.info("Please ensure 'backtest_result.csv' exists in the repository.")
 
     # Section 2: Model Architecture
     st.header("🧠 Core Engine: Hybrid-AI Architecture")
@@ -268,3 +305,4 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
