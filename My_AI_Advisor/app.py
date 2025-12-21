@@ -4,28 +4,28 @@ import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
 import datetime
-from dateutil import parser # 날짜 변환용
-import pytz # 타임존 처리용
+from dateutil import parser # Date conversion
+import pytz # Timezone handling
 from supabase import create_client, Client
 
 # ==============================================================================
-# 1. 설정 및 DB 연결
+# 1. Configuration & DB Connection
 # ==============================================================================
 st.set_page_config(page_title="AI Global Asset Advisor", layout="wide", page_icon="📈")
 
-# Supabase 연결
+# Connect to Supabase
 try:
-    # 스트림릿 클라우드 Secret 사용 시
+    # Use Streamlit Cloud Secrets
     SUPABASE_URL = st.secrets["supabase"]["url"]
     SUPABASE_KEY = st.secrets["supabase"]["key"]
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except Exception as e:
-    # 로컬 테스트용 (secrets 파일이 없을 경우 예외처리)
-    st.error(f"Secret 설정 오류: {e}")
+    # Fallback for local testing (if secrets are missing)
+    st.error(f"Secret Configuration Error: {e}")
     st.stop()
 
 def check_password():
-    """로그인 인증 함수"""
+    """Authentication Function"""
     def password_entered():
         if st.session_state["username"] in st.secrets["users"] and \
            st.session_state["password"] == st.secrets["users"][st.session_state["username"]]:
@@ -36,15 +36,15 @@ def check_password():
 
     if "password_correct" not in st.session_state:
         st.title("🔒 Global AI Advisor Login")
-        st.write("구독 회원 전용 서비스입니다. 아이디와 비밀번호를 입력하세요.")
-        st.text_input("아이디 (ID)", key="username")
-        st.text_input("비밀번호 (Password)", type="password", on_change=password_entered, key="password")
+        st.write("Subscriber-only service. Please enter your credentials.")
+        st.text_input("Username", key="username")
+        st.text_input("Password", type="password", on_change=password_entered, key="password")
         return False
     elif not st.session_state["password_correct"]:
         st.title("🔒 Global AI Advisor Login")
-        st.text_input("아이디 (ID)", key="username")
-        st.text_input("비밀번호 (Password)", type="password", on_change=password_entered, key="password")
-        st.error("😕 로그인 정보가 일치하지 않습니다.")
+        st.text_input("Username", key="username")
+        st.text_input("Password", type="password", on_change=password_entered, key="password")
+        st.error("😕 Incorrect username or password.")
         return False
     else:
         return True
@@ -53,20 +53,21 @@ if not check_password():
     st.stop()
 
 # ==============================================================================
-# 2. 데이터 로드 함수 (DB & 차트용)
+# 2. Data Loading Functions (DB & Chart)
 # ==============================================================================
 
-# 시간대 변환 함수 (UTC -> KST)
+# Timezone Conversion Function (UTC -> Local/KST)
 def convert_utc_to_kst(utc_str):
     try:
         utc_time = parser.parse(utc_str)
+        # Using KST as base time, but displayed as standard time format
         kst_zone = pytz.timezone('Asia/Seoul')
         kst_time = utc_time.astimezone(kst_zone)
-        return kst_time.strftime('%Y-%m-%d %H:%M') # 예: 2024-05-20 08:00
+        return kst_time.strftime('%Y-%m-%d %H:%M') # e.g., 2024-05-20 08:00
     except:
         return utc_str
 
-# [핵심] DB에서 최신 분석 결과 가져오기
+# [Core] Fetch latest analysis from DB
 def load_latest_analysis(market_name):
     try:
         response = supabase.table("prediction_logs") \
@@ -81,19 +82,19 @@ def load_latest_analysis(market_name):
         else:
             return None
     except Exception as e:
-        st.sidebar.error(f"DB 연결 실패: {e}")
+        st.sidebar.error(f"DB Connection Failed: {e}")
         return None
 
 # ==============================================================================
-# 3. 메인 앱 로직
+# 3. Main App Logic
 # ==============================================================================
-st.sidebar.title(f"환영합니다, {st.session_state.get('username', 'Member')}님! 👋")
+st.sidebar.title(f"Welcome, {st.session_state.get('username', 'Member')}! 👋")
 st.sidebar.markdown("---")
-market_option = st.sidebar.radio("분석할 시장 선택", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"])
+market_option = st.sidebar.radio("Select Market", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"])
 
-# 시장별 설정
+# Market Specific Settings
 if market_option == "NASDAQ (QQQ)":
-    TARGET_NAME = "나스닥 100 (QQQ)"
+    TARGET_NAME = "NASDAQ 100 (QQQ)"
     IDX_TICKER = "QQQ"
     LEV_LONG = "QLD (2x) / TQQQ (3x)"
     LEV_SHORT = "QID (2x) / SQQQ (3x)"
@@ -105,82 +106,91 @@ elif market_option == "S&P 500 (SPY)":
     LEV_SHORT = "SDS (2x) / SPXU (3x)"
     INVEST_AMT = "$1,000"
 else: # KOSPI
-    TARGET_NAME = "코스피 200 (KOSPI)"
+    TARGET_NAME = "KOSPI 200 (KOSPI)"
     IDX_TICKER = "^KS11" 
-    LEV_LONG = "KODEX 레버리지 (122630)"
-    LEV_SHORT = "KODEX 200선물인버스2X (252670)"
-    INVEST_AMT = "1,000,000원"
+    LEV_LONG = "KODEX Leverage (122630)"
+    LEV_SHORT = "KODEX 200 Futures Inverse 2X (252670)"
+    INVEST_AMT = "1,000,000 KRW"
 
 st.title(f"🤖 Global AI Advisor: {market_option}")
-st.write(f"**매일 아침/저녁**, AI가 자동으로 시장을 분석하고 업데이트합니다.")
+st.write(f"**Daily Update**, AI automatically analyzes market trends and signals.")
 st.markdown("---")
 
-# DB에서 데이터 가져오기
+# Fetch Data from DB
 latest_data = load_latest_analysis(market_option)
 
+# Main Layout (2 Columns)
 col1, col2 = st.columns([1, 1.5])
+
+# Variables for news section (bottom)
+news_score_val = 0
+news_summary_text = "No Data"
 
 with col1:
     if latest_data:
-        # 시간 변환 (KST로 보여주기)
+        # Convert time for display
         date_str = convert_utc_to_kst(latest_data['created_at'])
         
-        final_prob = latest_data['final_prob'] # 상승 확률
-        news_score = latest_data['news_score']
+        final_prob = latest_data['final_prob'] # Bullish Probability
+        news_score_val = latest_data['news_score'] # Stored for bottom section
         
-        # 하락/보합 확률 추정 (화면 표시용)
+        # Calculate Probabilities for Display
+        # Assumption: Bull + Bear + Neutral = 100%
         up_prob = final_prob
         remaining = 1.0 - up_prob
         down_prob = remaining * 0.5 
+        hold_prob = remaining * 0.5 # Neutral Probability
         
-        # UI 표시
-        st.info(f"📅 **최신 업데이트 (한국시간):** {date_str}")
+        # Display Info
+        st.info(f"📅 **Last Update:** {date_str}")
         
+        # Top Metrics (Added Neutral Prob, Removed News Score)
         m1, m2, m3 = st.columns(3)
-        m1.metric("📈 상승 확률", f"{up_prob*100:.1f}%")
-        m2.metric("📉 하락 확률", f"{down_prob*100:.1f}%") 
-        m3.metric("📰 뉴스 점수", f"{news_score}점")
+        m1.metric("📈 Bullish Prob", f"{up_prob*100:.1f}%")
+        m2.metric("📉 Bearish Prob", f"{down_prob*100:.1f}%") 
+        m3.metric("➖ Neutral Prob", f"{hold_prob*100:.1f}%")
         
-        # 판단 로직
-        decision = "관망 (HOLD)"
+        # Decision Logic
+        decision = "HOLD (Neutral)"
         color = "gray"
+        
         if up_prob >= 0.45:
-            decision = "매수 (BUY)"
+            decision = "BUY"
             color = "green"
         elif up_prob <= 0.2:
-            decision = "매도/인버스 (SELL)"
+            decision = "SELL / Inverse"
             color = "red"
             
-        st.markdown(f"### 📢 AI 최종 판단: :{color}[**{decision}**]")
+        st.markdown(f"### 📢 AI Final Decision: :{color}[**{decision}**]")
         
-        with st.expander("💡 상세 투자 가이드", expanded=True):
+        with st.expander("💡 Investment Strategy Guide", expanded=True):
             st.markdown(f"""
-            **기준일시: {date_str}**
-            * **매수 신호:** {LEV_LONG} **{INVEST_AMT}** 분할 매수
-            * **매도 신호:** {LEV_SHORT} **{INVEST_AMT}** 분할 매수
-            * **관망:** 현금 보유 및 대기 (무리한 진입 금지)
+            **Ref Date: {date_str}**
+            * **BUY Signal:** Accumulate {LEV_LONG} **{INVEST_AMT}**
+            * **SELL Signal:** Accumulate {LEV_SHORT} **{INVEST_AMT}**
+            * **HOLD Signal:** Maintain current position. No new trades.
             """)
             
-        # 수동 업데이트 버튼
-        if st.button("🔄 데이터 새로고침"):
+        # Manual Refresh Button
+        if st.button("🔄 Refresh Data"):
             st.rerun()
             
     else:
-        st.warning("⚠️ 아직 분석된 데이터가 없습니다.")
-        st.info("AI 모델이 데이터를 수집 중입니다. 잠시 후 다시 확인해주세요.")
+        st.warning("⚠️ No analysis data available yet.")
+        st.info("AI is currently collecting market data. Please check back later.")
 
 with col2:
-    st.write(f"📊 **{TARGET_NAME} 지수 차트**")
+    st.write(f"📊 **{TARGET_NAME} Index Chart**")
     
     try:
-        # 차트는 실시간 가격을 보여줘야 하므로 여기서 yfinance 호출
-        with st.spinner("최신 차트 불러오는 중..."):
+        # Fetch real-time chart data using yfinance
+        with st.spinner("Loading latest chart..."):
             chart_df = yf.download(IDX_TICKER, period="6mo", progress=False, auto_adjust=True)
         
         if chart_df.empty:
-            st.warning("차트 데이터 수신 실패 (잠시 후 다시 시도하세요)")
+            st.warning("Failed to fetch chart data. Please try again later.")
         else:
-            # MultiIndex 처리 (yfinance 버전에 따라 다를 수 있음)
+            # MultiIndex Handling
             if isinstance(chart_df.columns, pd.MultiIndex):
                 try: chart_df = chart_df.xs(IDX_TICKER, axis=1, level=0)
                 except: chart_df.columns = chart_df.columns.get_level_values(0)
@@ -188,18 +198,18 @@ with col2:
             if 'Close' in chart_df.columns:
                 chart_data = chart_df['Close'].replace(0, np.nan).dropna()
                 current_price = chart_data.iloc[-1]
-                st.metric(label=f"현재 가격 ({IDX_TICKER})", value=f"{current_price:,.2f}")
+                st.metric(label=f"Current Price ({IDX_TICKER})", value=f"{current_price:,.2f}")
 
-                # 변동성 계산
+                # Volatility Calculation
                 recent_volatility = chart_data.pct_change().tail(30).std()
                 if np.isnan(recent_volatility) or recent_volatility == 0: recent_volatility = 0.01
 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='History', line=dict(color='#1f77b4', width=2)))
 
-                # AI 예측선 그리기 (DB 데이터가 있을 때만)
+                # Draw AI Forecast Line (Only if DB data exists)
                 if latest_data:
-                    # 상승 확률에 따른 예상 이동 경로
+                    # Expected move based on Bullish Probability
                     up_p = latest_data['final_prob']
                     expected_move = (up_p - 0.5) * recent_volatility * 1.5 
                     
@@ -214,9 +224,9 @@ with col2:
                     fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='AI Forecast', line=dict(color=trend_color, width=3, dash='dot')))
                     
                     total_return = (future_prices[-1] / current_price - 1) * 100
-                    st.caption(f"💡 AI 확률 기반 5일 예상 추세: **{total_return:+.2f}%**")
+                    st.caption(f"💡 AI Prob-based 5-Day Forecast: **{total_return:+.2f}%**")
 
-                # 레이아웃
+                # Layout Settings
                 y_min = chart_data.min()
                 y_max = chart_data.max()
                 if 'future_prices' in locals():
@@ -234,6 +244,29 @@ with col2:
                 )
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("데이터 형식이 올바르지 않습니다.")
+                st.warning("Invalid data format.")
     except Exception as e:
-        st.error(f"차트 로딩 실패: {e}")
+        st.error(f"Chart loading failed: {e}")
+
+# ==============================================================================
+# [New] Bottom News Section (UI Layout)
+# ==============================================================================
+st.markdown("---")
+st.subheader("📰 AI Market Sentiment Analysis")
+
+if latest_data:
+    n_col1, n_col2 = st.columns([1, 3])
+    
+    with n_col1:
+        st.metric("Sentiment Score", f"{news_score_val} / 100")
+        st.caption("0 (Negative) ~ 100 (Positive)")
+    
+    with n_col2:
+        # Placeholder for future summary feature
+        st.info("💡 **Market News Summary**")
+        st.markdown("""
+        (News collection and summarization features are currently being integrated. 
+        AI-generated summaries of key market issues will be displayed here.)
+        """)
+else:
+    st.write("No data available.")
