@@ -58,6 +58,10 @@ def check_password():
         if st.session_state["username"] in st.secrets["users"] and \
            st.session_state["password"] == st.secrets["users"][st.session_state["username"]]:
             st.session_state["password_correct"] = True
+            
+            # [수정 1] 로그인 성공 시, 사라질 widget 변수 대신 영구 변수에 ID 저장
+            st.session_state["logged_in_user"] = st.session_state["username"]
+            
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
@@ -89,11 +93,11 @@ if page == "🏠 Home (About Model)":
     
     st.divider()
 
-# Section 1: Benchmark Performance (Real Backtest Data)
+    # Section 1: Benchmark Performance (Real Backtest Data)
     st.header("🏆 Performance Benchmark (Backtest)")
     st.write("Comparison of **AI Algorithm Strategy** vs. **Market Benchmark (SPY)** over the last 12 months.")
     
-    # [Modified] Load real backtest results from CSV
+    # Load real backtest results from CSV
     try:
         # Load CSV
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -103,15 +107,12 @@ if page == "🏠 Home (About Model)":
         df['Date'] = pd.to_datetime(df['Date'])
         df.set_index('Date', inplace=True)
         
-        # Convert to Percentage Return (Return relative to initial capital)
-        # Conversion required as CSV contains Equity values
         initial_capital = df['Strategy'].iloc[0]
         ai_returns = (df['Strategy'] - initial_capital) / initial_capital
         market_returns = (df['Benchmark'] - initial_capital) / initial_capital
         
         dates = df.index
         
-        # Calculate Final Performance
         final_ai_ret = ai_returns.iloc[-1] * 100
         final_bm_ret = market_returns.iloc[-1] * 100
         alpha = final_ai_ret - final_bm_ret
@@ -121,23 +122,20 @@ if page == "🏠 Home (About Model)":
         fig_bench.add_trace(go.Scatter(x=dates, y=ai_returns, mode='lines', name='AI Strategy', line=dict(color='#00FFA3', width=2)))
         fig_bench.add_trace(go.Scatter(x=dates, y=market_returns, mode='lines', name='S&P 500 (Benchmark)', line=dict(color='gray', dash='dot')))
         
-        # Configure Chart Layout
         fig_bench.update_layout(
             title="Cumulative Return Comparison (Last 1 Year)",
             xaxis_title="Date",
             yaxis_title="Return (0.1 = 10%)",
             template="plotly_dark",
             height=400,
-            yaxis_tickformat='.0%' # Format Y-axis as percentage
+            yaxis_tickformat='.0%'
         )
         
         col_bench1, col_bench2 = st.columns([2, 1])
         with col_bench1:
             st.plotly_chart(fig_bench, use_container_width=True)
         with col_bench2:
-            # Display Metrics
             diff_color = "normal"
-            # Use st.metric's delta for green color indication if alpha is positive
             if alpha > 0: diff_color = "normal" 
             
             st.metric(label="AI Total Return", value=f"{final_ai_ret:+.2f}%", delta=f"{alpha:+.2f}% vs SPY")
@@ -180,10 +178,22 @@ elif page == "🚀 AI Dashboard (Member Only)":
     
     # Login Check
     if check_password():
-        st.sidebar.success(f"Login: {st.session_state.get('username')}")
+        # [수정 2] 우측 상단에 로그인 정보 표시 (화면 분할)
+        top_col1, top_col2 = st.columns([4, 1])
         
         # --- Existing Dashboard Code Starts Here ---
         market_option = st.sidebar.radio("Select Market", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"])
+
+        with top_col1:
+            st.title(f"🤖 AI Dashboard: {market_option}")
+            st.caption(f"Real-time analysis powered by TMFG-LSTM Model.")
+        
+        with top_col2:
+            # 우측 상단 사용자 표시
+            user_id = st.session_state.get("logged_in_user", "Member")
+            st.markdown(f"<div style='text-align: right; padding-top: 20px;'>👤 <b>{user_id}</b> logged in</div>", unsafe_allow_html=True)
+
+        st.markdown("---")
 
         # Market Settings
         if market_option == "NASDAQ (QQQ)":
@@ -204,10 +214,6 @@ elif page == "🚀 AI Dashboard (Member Only)":
             LEV_LONG = "KODEX Leverage (122630)"
             LEV_SHORT = "KODEX 200 Futures Inverse 2X (252670)"
             INVEST_AMT = "1,000,000 KRW"
-
-        st.title(f"🤖 AI Dashboard: {market_option}")
-        st.caption(f"Real-time analysis powered by TMFG-LSTM Model.")
-        st.markdown("---")
 
         latest_data = load_latest_analysis(market_option)
 
@@ -270,6 +276,8 @@ elif page == "🚀 AI Dashboard (Member Only)":
                     if 'Close' in chart_df.columns:
                         chart_data = chart_df['Close'].replace(0, np.nan).dropna()
                         current_price = chart_data.iloc[-1]
+                        
+                        # [수정 3] AI 예측 수익률 표시 및 캡션 추가 (Price Metric 바로 아래)
                         st.metric(f"Price ({IDX_TICKER})", f"{current_price:,.2f}")
 
                         recent_volatility = chart_data.pct_change().tail(30).std()
@@ -294,6 +302,10 @@ elif page == "🚀 AI Dashboard (Member Only)":
                             future_prices = [current_price * ((1 + expected_move) ** i) for i in range(0, 6)]
                             
                             fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='AI Forecast', line=dict(color=trend_color, width=3, dash='dot')))
+                            
+                            # [수정 3 계속] 예측 수익률 계산
+                            total_return = (future_prices[-1] / current_price - 1) * 100
+                            st.caption(f"💡 AI Prob-based 5-Day Forecast: **{total_return:+.2f}%**")
                         
                         fig.update_layout(xaxis_title="Date", yaxis_title="Price", template="plotly_dark", height=400, margin=dict(l=20, r=20, t=40, b=20))
                         st.plotly_chart(fig, use_container_width=True)
@@ -309,5 +321,3 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
-
-
