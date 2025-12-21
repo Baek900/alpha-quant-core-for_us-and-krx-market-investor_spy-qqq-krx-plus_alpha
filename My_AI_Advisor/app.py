@@ -32,7 +32,7 @@ MARKET_STATS = {
 }
 
 # ==============================================================================
-# 1. Configuration & Custom CSS (Maximum Visibility Theme)
+# 1. Configuration & Custom CSS (Maximum Visibility Theme with Adjusted Background)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
 
@@ -46,8 +46,9 @@ st.markdown("""
             color: #FFFFFF !important; /* Default to Pure White */
         }
         
+        /* Background Color Adjusted: Slightly brighter than black, darker than #0f172a */
         .stApp {
-            background-color: #000000 !important;
+            background-color: #0B121F !important;
         }
 
         /* 2. Headers (H1, H2, H3...) */
@@ -57,8 +58,7 @@ st.markdown("""
             letter-spacing: -0.5px;
         }
 
-        /* 3. Captions & Small Text (The Problem Area) */
-        /* Force captions to be Light Silver instead of dark grey */
+        /* 3. Captions & Small Text */
         div[data-testid="stCaptionContainer"], small, .stCaption {
             color: #CCCCCC !important; /* Much brighter silver */
             font-size: 0.9rem !important;
@@ -77,9 +77,9 @@ st.markdown("""
         [data-testid="stSidebar"] {display: none !important;}
         section[data-testid="stSidebar"] {display: none !important;}
 
-        /* 6. Metric Cards */
+        /* 6. Metric Cards - Adjusted for new background */
         div[data-testid="stMetric"] {
-            background-color: #111111 !important;
+            background-color: #121926 !important; /* Slightly lighter than new background */
             border: 1px solid #444444 !important; /* Brighter border */
             padding: 15px;
             border-radius: 8px;
@@ -103,14 +103,14 @@ st.markdown("""
             font-weight: 600;
         }
 
-        /* 8. Form Elements */
+        /* 8. Form Elements - Adjusted for new background */
         div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
-            background-color: #111111 !important;
+            background-color: #121926 !important;
             color: white !important;
             border: 1px solid #555555 !important;
         }
         ul[data-testid="stSelectboxVirtualDropdown"] {
-            background-color: #111111 !important;
+            background-color: #121926 !important;
         }
         li[role="option"] {
             color: white !important;
@@ -120,6 +120,15 @@ st.markdown("""
         hr {
             border-top: 1px solid #555555 !important;
             margin: 1.5rem 0;
+        }
+        
+        /* 10. Expander - Adjusted for new background */
+        .streamlit-expanderHeader {
+            background-color: #121926 !important;
+        }
+        div[data-testid="stExpanderDetails"] {
+            background-color: #0B121F !important; /* Match main background */
+            border: 1px solid #444444;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -310,6 +319,7 @@ if st.session_state["current_page"] == "Home":
 # ------------------------------------------------------------------------------
 elif st.session_state["current_page"] == "Dashboard":
     
+    # [CUSTOM NAVBAR]
     nav_col1, nav_col2 = st.columns([3, 1])
     
     with nav_col1:
@@ -325,6 +335,7 @@ elif st.session_state["current_page"] == "Dashboard":
     
     st.divider()
 
+    # Dashboard Content
     top_col1, top_col2 = st.columns([4, 1])
     
     with top_col1:
@@ -332,6 +343,7 @@ elif st.session_state["current_page"] == "Dashboard":
         st.caption("Live Market Analysis & Signal Generation")
     
     with top_col2:
+         # Status: Brighter Text
          st.markdown(f"<div style='text-align: right; color: #FFFFFF; font-weight: bold;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
 
     # Configuration Map
@@ -377,7 +389,7 @@ elif st.session_state["current_page"] == "Dashboard":
                 d_color = "#FF4560"
             
             st.markdown(f"""
-            <div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #111111; text-align: center;'>
+            <div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #121926; text-align: center;'>
                 <span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Primary Signal</span><br>
                 <span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span>
             </div>
@@ -391,12 +403,13 @@ elif st.session_state["current_page"] == "Dashboard":
                 
                 st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
                 
+                # High Contrast Strategy Text
                 st.markdown(f"""
                 <div style="
                     margin-top: 10px;
                     margin-bottom: 15px;
                     padding: 15px;
-                    background-color: #000000; 
+                    background-color: #121926; 
                     border: 1px solid #7C3AED; 
                     border-radius: 4px;
                 ">
@@ -412,6 +425,7 @@ elif st.session_state["current_page"] == "Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # High Contrast Leverage Info
                 st.markdown(f"""
                 <div style='font-size: 0.9rem; color: #CCCCCC; margin-top: 10px; border-top: 2px solid #555; padding-top: 10px; font-weight: 500;'>
                 * 📈 <b>Long Target:</b> {LEV_LONG}<br>
