@@ -7,6 +7,7 @@ import datetime
 from dateutil import parser
 import pytz
 from supabase import create_client, Client
+import os
 
 # ==============================================================================
 # 1. Configuration & Global Settings
@@ -95,7 +96,10 @@ if page == "🏠 Home (About Model)":
     # [Modified] Load real backtest results from CSV
     try:
         # Load CSV
-        df = pd.read_csv("backtest_result.csv")
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "backtest_result.csv")
+        
+        df = pd.read_csv(file_path)
         df['Date'] = pd.to_datetime(df['Date'])
         df.set_index('Date', inplace=True)
         
@@ -305,4 +309,5 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
 
