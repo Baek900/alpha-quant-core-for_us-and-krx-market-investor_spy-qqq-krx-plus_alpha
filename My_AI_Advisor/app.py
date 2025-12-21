@@ -8,6 +8,7 @@ from dateutil import parser
 import pytz
 from supabase import create_client, Client
 import os
+from strategy_logic import get_strategy_text
 
 # ==============================================================================
 # 1. Configuration & Custom CSS (The "Modern Fintech" Look)
@@ -107,13 +108,17 @@ def load_latest_analysis(market_name):
             .select("*") \
             .eq("market_name", market_name) \
             .order("created_at", desc=True) \
-            .limit(1) \
+            .limit(2) \
             .execute()
-        if response.data: return response.data[0]
-        else: return None
+        
+        if response.data:
+            current_data = response.data[0]
+            previous_data = response.data[1] if len(response.data) > 1 else None
+            return current_data, previous_data
+        else:
+            return None, None
     except:
-        return None
-
+        return None, None
 def logout():
     st.session_state["password_correct"] = False
     st.session_state["logged_in_user"] = None
@@ -281,7 +286,7 @@ elif st.session_state["current_page"] == "Dashboard":
     else: 
         IDX_TICKER, LEV_LONG, LEV_SHORT = "^KS11", "KODEX Leverage", "KODEX 200 Inverse 2X"
 
-    latest_data = load_latest_analysis(market_option)
+    latest_data, prev_data = load_latest_analysis(market_option)
 
     col1, col2 = st.columns([1, 1.5])
 
@@ -301,7 +306,7 @@ elif st.session_state["current_page"] == "Dashboard":
             m2.metric("Bearish", f"{down_prob*100:.1f}%") 
             m3.metric("Neutral", f"{hold_prob*100:.1f}%")
             
-            # Signal Logic
+
             decision = "HOLD"
             d_color = "#9CA3AF" # Grey
             if up_prob >= 0.45:
@@ -318,14 +323,24 @@ elif st.session_state["current_page"] == "Dashboard":
             </div>
             """, unsafe_allow_html=True)
             
-            # [Restored] Emojis for Execution Plan
-            with st.expander("View Strategy Details", expanded=False):
+
+            prev_signal = prev_data['action'] if prev_data else None
+            strategy_text = get_strategy_text(prev_signal, decision)
+
+            with st.expander("View Strategy Details", expanded=True):
+
+                st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
+                
+
+                st.info(strategy_text)
+                
+
                 st.markdown(f"""
-                **Execution Plan:**
-                * 📈 **Long:** {LEV_LONG}
-                * 📉 **Short:** {LEV_SHORT}
-                * 🛡️ **Neutral:** Cash / Hold
-                """)
+                <div style='font-size: 0.8rem; color: #888; margin-top: 10px;'>
+                * 📈 <b>Long Target:</b> {LEV_LONG}<br>
+                * 📉 <b>Short Target:</b> {LEV_SHORT}
+                </div>
+                """, unsafe_allow_html=True)
                 
             if st.button("Refresh Analysis"):
                 st.rerun()
@@ -395,3 +410,4 @@ elif st.session_state["current_page"] == "Dashboard":
             st.metric("Sentiment Score", f"{latest_data['news_score']}", delta="Neutral")
         with nc2:
             st.info("Live News Aggregation: System is processing global financial feeds...")
+
