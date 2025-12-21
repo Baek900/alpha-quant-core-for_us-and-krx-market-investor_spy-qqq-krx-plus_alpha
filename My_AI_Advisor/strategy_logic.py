@@ -1,7 +1,7 @@
 # strategy_logic.py
 
 def get_strategy_text(prev_signal, curr_signal):
-    # 1. 이전 기록이 없을 때
+    # 1. No previous record
     if not prev_signal:
         return f"Initialize position based on current {curr_signal} signal."
 
