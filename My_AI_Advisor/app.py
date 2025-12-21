@@ -153,7 +153,7 @@ if page == "🏠 Home (About Model)":
         st.info("Please ensure 'backtest_result.csv' exists in the repository.")
 
 
-st.divider()
+    st.divider()
     
     # Section 2: Model Accuracy & Reliability
     st.header("🎯 AI Reliability Verification")
@@ -374,6 +374,7 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
 
 
 
