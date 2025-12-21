@@ -152,24 +152,6 @@ if page == "🏠 Home (About Model)":
         st.error(f"Failed to load backtest data: {e}")
         st.info("Please ensure 'backtest_result.csv' exists in the repository.")
 
-    # Section 2: Model Architecture
-    st.header("🧠 Core Engine: Hybrid-AI Architecture")
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("1. TMFG Network Analysis")
-        st.write("""
-        **Topological Mode Filtering Graph (TMFG)** constructs a correlation network between assets.
-        It filters out market noise and captures the **true structural relationships** between global sectors.
-        """)
-    with c2:
-        st.subheader("2. LSTM + Attention")
-        st.write("""
-        **Long Short-Term Memory (LSTM)** networks process time-series data to detect trend reversals.
-        Our proprietary **Relation Layer** enhances prediction accuracy by understanding how one sector's movement impacts others.
-        """)
-
-    st.info("💡 **Why this matters:** Unlike traditional indicators (RSI, MACD), our AI understands the *context* of market movements.")
 
 st.divider()
     
@@ -221,6 +203,26 @@ st.divider()
         """)
 
     st.divider()
+
+    
+    # Section 3: Model Architecture
+    st.header("🧠 Core Engine: Hybrid-AI Architecture")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("1. TMFG Network Analysis")
+        st.write("""
+        **Topological Mode Filtering Graph (TMFG)** constructs a correlation network between assets.
+        It filters out market noise and captures the **true structural relationships** between global sectors.
+        """)
+    with c2:
+        st.subheader("2. LSTM + Attention")
+        st.write("""
+        **Long Short-Term Memory (LSTM)** networks process time-series data to detect trend reversals.
+        Our proprietary **Relation Layer** enhances prediction accuracy by understanding how one sector's movement impacts others.
+        """)
+
+    st.info("💡 **Why this matters:** Unlike traditional indicators (RSI, MACD), our AI understands the *context* of market movements.")
 
 # ==============================================================================
 # 5. Page: Dashboard (Private - Login Required)
@@ -372,6 +374,7 @@ elif page == "🚀 AI Dashboard (Member Only)":
                 st.metric("Sentiment Score", f"{news_score_val} / 100")
             with nc2:
                 st.info("AI News Summary: The feature is currently aggregating global financial news...")
+
 
 
 
