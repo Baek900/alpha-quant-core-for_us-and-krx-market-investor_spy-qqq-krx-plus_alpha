@@ -10,14 +10,14 @@ from supabase import create_client, Client
 import os
 
 # ==============================================================================
-# 1. Configuration & Custom CSS (The "Pro" Look)
+# 1. Configuration & Custom CSS (The "Modern Fintech" Look)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
 
 # [CSS Injection] Override default Streamlit styles for a professional look
 st.markdown("""
     <style>
-        /* 1. Import Google Fonts (Inter) for a standard financial look */
+        /* 1. Import Google Fonts (Inter) for a clean financial look */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         
         html, body, [class*="css"] {
@@ -123,10 +123,10 @@ def logout():
 # ==============================================================================
 # 3. Login Dialog Logic
 # ==============================================================================
-@st.dialog("Client Portal Login") 
+@st.dialog("Member Login") 
 def login_dialog():
-    st.write("Enter your secure credentials.")
-    username = st.text_input("ID") 
+    st.write("Please enter your credentials.")
+    username = st.text_input("Username") 
     password = st.text_input("Password", type="password")
 
     if st.button("Access Dashboard"): 
@@ -154,11 +154,11 @@ if st.session_state["current_page"] == "Home":
     col_header, col_login = st.columns([6, 1])
     
     with col_header:
-        # Typography emphasis without emojis
         st.markdown("<h1 style='font-size: 3rem; font-weight: 800; letter-spacing: -1px;'>Global Asset Advisor</h1>", unsafe_allow_html=True)
     
     with col_login:
-        if st.button("Client Login", use_container_width=True):
+        # [Restored] Key Emoji for Login Button
+        if st.button("🔑 Log In", use_container_width=True):
             login_dialog()
 
     st.markdown("<h3 style='color: #888; font-weight: 400;'>Advanced Financial Forecasting System powered by TMFG-LSTM</h3>", unsafe_allow_html=True)
@@ -188,7 +188,6 @@ if st.session_state["current_page"] == "Home":
 
         # Chart (Clean Style)
         fig_bench = go.Figure()
-        # Adjusted line colors to professional neon green/gray
         fig_bench.add_trace(go.Scatter(x=df.index, y=ai_returns, mode='lines', name='Alpha Strategy', line=dict(color='#00E396', width=2)))
         fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#4B5563', dash='dot')))
         
@@ -215,7 +214,7 @@ if st.session_state["current_page"] == "Home":
 
     st.divider()
     
-    # Section 2: Model Accuracy (Clean Metrics)
+    # Section 2: Model Reliability (Modified: Removed Confusion Matrix, Added Recall)
     st.markdown("#### Model Reliability Metrics")
     st.caption("Validation on unseen test data (2025) | SPY Model")
 
@@ -223,30 +222,16 @@ if st.session_state["current_page"] == "Home":
     
     with col_m1:
         st.metric(label="Accuracy", value="52.6%", delta="vs Random (33%)")
+        st.caption("Consistent edge over random chance.")
+        
     with col_m2:
         st.metric(label="Precision (Buy)", value="64.0%", delta="High Confidence")
+        st.caption("Minimizes false positives in uptrends.")
+        
     with col_m3:
-        st.metric(label="F1-Score", value="0.59")
-
-    # Confusion Matrix (No Emoji Header)
-    st.markdown("##### Confusion Matrix Analysis")
-    
-    c_img, c_desc = st.columns([1, 2])
-    
-    with c_img:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        img_path = os.path.join(current_dir, "confusion_matrix.png")
-        if os.path.exists(img_path):
-            st.image(img_path, use_container_width=True)
-    
-    with c_desc:
-        st.markdown("""
-        <div style='background-color: #1E1E2E; padding: 15px; border-radius: 8px; font-size: 0.9rem; color: #CCC;'>
-        <b>Analysis Insight:</b><br>
-        The model demonstrates a <b>64% precision rate</b> in identifying uptrends, significantly reducing false positive signals. 
-        This conservative approach creates a stable equity curve suitable for long-term compounding.
-        </div>
-        """, unsafe_allow_html=True)
+        # [Modified] Replaced F1-Score with Recall
+        st.metric(label="Recall (Uptrend)", value="55.0%", delta="Opportunity Capture")
+        st.caption("Captures the majority of market rallies.")
 
     st.divider()
 
@@ -267,10 +252,9 @@ if st.session_state["current_page"] == "Home":
 elif st.session_state["current_page"] == "Dashboard":
     
     # Sidebar
-    st.sidebar.markdown("### Client Menu")
-    st.sidebar.markdown(f"User: **{st.session_state.get('logged_in_user', 'Client')}**")
+    st.sidebar.markdown("### Member Menu") # Client -> Member
+    st.sidebar.markdown(f"User: **{st.session_state.get('logged_in_user', 'Member')}**")
     
-    # Radio -> Selectbox (Cleaner UI)
     market_option = st.sidebar.selectbox("Select Asset Class", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]) 
     
     st.sidebar.markdown("---")
@@ -311,7 +295,7 @@ elif st.session_state["current_page"] == "Dashboard":
             
             st.markdown(f"**Analysis Time:** {date_str}")
             
-            # Metrics (Visualized as styled cards via CSS)
+            # Metrics
             m1, m2, m3 = st.columns(3)
             m1.metric("Bullish", f"{up_prob*100:.1f}%")
             m2.metric("Bearish", f"{down_prob*100:.1f}%") 
@@ -334,12 +318,13 @@ elif st.session_state["current_page"] == "Dashboard":
             </div>
             """, unsafe_allow_html=True)
             
-            with st.expander("View Strategy Details"):
+            # [Restored] Emojis for Execution Plan
+            with st.expander("View Strategy Details", expanded=False):
                 st.markdown(f"""
                 **Execution Plan:**
-                * **Long:** {LEV_LONG}
-                * **Short:** {LEV_SHORT}
-                * **Neutral:** Cash / Hold
+                * 📈 **Long:** {LEV_LONG}
+                * 📉 **Short:** {LEV_SHORT}
+                * 🛡️ **Neutral:** Cash / Hold
                 """)
                 
             if st.button("Refresh Analysis"):
@@ -348,7 +333,6 @@ elif st.session_state["current_page"] == "Dashboard":
             st.warning("Data syncing...")
 
     with col2:
-        # Use markdown instead of st.write for font consistency
         st.markdown(f"**Price Action & Forecast ({IDX_TICKER})**")
         try:
             with st.spinner("Fetching market data..."):
