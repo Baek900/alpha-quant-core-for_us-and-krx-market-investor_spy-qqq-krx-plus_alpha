@@ -32,20 +32,19 @@ MARKET_STATS = {
 }
 
 # ==============================================================================
-# 1. Configuration & Custom CSS (Forced Black Theme & Mobile Optimization)
+# 1. Configuration & Custom CSS (High Contrast Black Theme)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
 
-# [CSS Injection] Force Black Theme & Remove Default Navigation
 st.markdown("""
     <style>
         /* 1. Font Import */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         
-        /* 2. Global Reset & Dark Theme Enforcement */
+        /* 2. Global Reset & High Contrast Dark Theme */
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
-            color: #E0E0E0;
+            color: #FFFFFF !important; /* [Change] Text color brightened to pure white */
         }
         
         /* Force Background Color to Black */
@@ -53,7 +52,7 @@ st.markdown("""
             background-color: #000000 !important;
         }
 
-        /* 3. Hide Default Streamlit Elements (Header, Footer, Sidebar Button) */
+        /* 3. Hide Default Streamlit Elements */
         header {visibility: hidden !important;}
         footer {visibility: hidden !important;}
         [data-testid="stSidebar"] {display: none !important;}
@@ -61,19 +60,20 @@ st.markdown("""
 
         /* 4. Metric Box Design (Cards) */
         div[data-testid="stMetric"] {
-            background-color: #121212 !important; /* Slightly lighter than black */
+            background-color: #121212 !important; 
             border: 1px solid #333333;
             padding: 15px;
             border-radius: 8px;
         }
         div[data-testid="stMetricLabel"] {
-            font-size: 0.8rem !important;
-            color: #9CA3AF !important; 
+            font-size: 0.9rem !important; /* [Change] Slightly larger */
+            color: #E5E7EB !important;   /* [Change] Brightened Label Color (Light Gray) */
+            font-weight: 500 !important;
         }
         div[data-testid="stMetricValue"] {
-            font-size: 1.5rem !important;
+            font-size: 1.6rem !important;
             font-weight: 700 !important;
-            color: #FFFFFF !important;
+            color: #FFFFFF !important;   /* Pure White */
         }
 
         /* 5. Button Styling */
@@ -91,16 +91,16 @@ st.markdown("""
             color: white;
         }
 
-        /* 6. Form Inputs (Selectbox, Text Input) Styling for Dark Mode */
+        /* 6. Form Inputs */
         div[data-baseweb="select"] > div {
             background-color: #1E1E2E !important;
             color: white !important;
-            border-color: #333 !important;
+            border-color: #4B5563 !important; /* Lighter border */
         }
         div[data-baseweb="input"] > div {
             background-color: #1E1E2E !important;
             color: white !important;
-            border-color: #333 !important;
+            border-color: #4B5563 !important;
         }
         div[data-baseweb="base-input"] {
             background-color: #1E1E2E !important;
@@ -109,7 +109,6 @@ st.markdown("""
             color: white !important;
         }
         
-        /* Dropdown Menu Items */
         ul[data-testid="stSelectboxVirtualDropdown"] {
             background-color: #1E1E2E !important;
         }
@@ -120,7 +119,7 @@ st.markdown("""
         /* 7. Expander Styling */
         .streamlit-expanderHeader {
             background-color: #1E1E2E !important;
-            color: #E0E0E0 !important;
+            color: #FFFFFF !important; /* Brightened */
             border-radius: 4px;
         }
         div[data-testid="stExpanderDetails"] {
@@ -130,14 +129,9 @@ st.markdown("""
             border-radius: 0 0 4px 4px;
         }
 
-        /* 8. Tab Styling (if used) */
-        button[data-baseweb="tab"] {
-            color: #E0E0E0 !important;
-        }
-        
-        /* 9. Divider */
+        /* 8. Divider */
         hr {
-            border-top: 1px solid #333;
+            border-top: 1px solid #444; /* Slightly brighter line */
             margin: 1.5rem 0;
         }
     </style>
@@ -224,17 +218,17 @@ if st.session_state["password_correct"]:
 # ------------------------------------------------------------------------------
 if st.session_state["current_page"] == "Home":
     
-    # Header Layout
     col_header, col_login = st.columns([6, 1])
     
     with col_header:
-        st.markdown("<h1 style='font-size: 3rem; font-weight: 800; letter-spacing: -1px; color: white;'>Global Asset Advisor</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='font-size: 3rem; font-weight: 800; letter-spacing: -1px; color: #FFFFFF;'>Global Asset Advisor</h1>", unsafe_allow_html=True)
     
     with col_login:
         if st.button("🔑 Log In", use_container_width=True):
             login_dialog()
 
-    st.markdown("<h3 style='color: #888; font-weight: 400;'>Advanced Financial Forecasting System powered by TMFG-LSTM</h3>", unsafe_allow_html=True)
+    # [Change] Subtitle color brightened (#888 -> #D1D5DB)
+    st.markdown("<h3 style='color: #D1D5DB; font-weight: 400;'>Advanced Financial Forecasting System powered by TMFG-LSTM</h3>", unsafe_allow_html=True)
     st.write("This platform leverages deep learning architectures to analyze global market trends, macroeconomics, and sector rotation, providing institutional-grade insights.")
     
     st.divider()
@@ -259,17 +253,16 @@ if st.session_state["current_page"] == "Home":
         final_bm_ret = market_returns.iloc[-1] * 100
         alpha = final_ai_ret - final_bm_ret
 
-        # Chart (Clean Style for Dark Mode)
         fig_bench = go.Figure()
         fig_bench.add_trace(go.Scatter(x=df.index, y=ai_returns, mode='lines', name='Alpha Strategy', line=dict(color='#00E396', width=2)))
-        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#6B7280', dash='dot')))
+        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#9CA3AF', dash='dot'))) # [Change] Lighter benchmark line
         
         fig_bench.update_layout(
             paper_bgcolor='rgba(0,0,0,0)', 
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=0, r=0, t=30, b=0),
-            xaxis=dict(showgrid=False, color='#888'),
-            yaxis=dict(showgrid=True, gridcolor='#333', color='#888', tickformat='.0%'),
+            xaxis=dict(showgrid=False, color='#D1D5DB'), # [Change] Brighter Axis Labels
+            yaxis=dict(showgrid=True, gridcolor='#333', color='#D1D5DB', tickformat='.0%'), # [Change] Brighter Axis Labels
             legend=dict(orientation="h", y=1.1, font=dict(color="white")),
             height=350
         )
@@ -324,19 +317,16 @@ if st.session_state["current_page"] == "Home":
 elif st.session_state["current_page"] == "Dashboard":
     
     # [CUSTOM NAVBAR] Replaces the Sidebar
-    # This row will be fixed at the top of the main content area
     nav_col1, nav_col2 = st.columns([3, 1])
     
     with nav_col1:
-        # Market Selector moved to top
         market_option = st.selectbox(
             "Select Market", 
             ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"],
-            label_visibility="collapsed" # Hide label for cleaner look
+            label_visibility="collapsed" 
         )
     
     with nav_col2:
-        # Logout Button moved to top right
         if st.button("Sign Out"):
             logout()
     
@@ -350,7 +340,8 @@ elif st.session_state["current_page"] == "Dashboard":
         st.caption("Live Market Analysis & Signal Generation")
     
     with top_col2:
-         st.markdown(f"<div style='text-align: right; color: #888;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
+         # [Change] Status text brightened (#888 -> #D1D5DB)
+         st.markdown(f"<div style='text-align: right; color: #D1D5DB;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
 
     # Configuration Map
     if market_option == "NASDAQ (QQQ)":
@@ -374,7 +365,6 @@ elif st.session_state["current_page"] == "Dashboard":
             
             up_prob = latest_data['final_prob']
             
-            # Calculate remaining probabilities automatically if not in DB.
             down_prob = latest_data.get('prob_down', (1.0 - up_prob) * 0.5)
             hold_prob = latest_data.get('prob_neutral', (1.0 - up_prob) * 0.5)
             
@@ -388,17 +378,18 @@ elif st.session_state["current_page"] == "Dashboard":
             
             # Primary Signal Decision
             decision = "HOLD"
-            d_color = "#9CA3AF" # Grey
+            d_color = "#D1D5DB" # [Change] Grey -> Light Grey
             if up_prob >= 0.45:
                 decision = "BUY"
                 d_color = "#00E396" # Green
             elif up_prob <= 0.2:
                 decision = "SELL"
                 d_color = "#FF4560" # Red
-                
+            
+            # [Change] Primary Signal box text color brightened
             st.markdown(f"""
             <div style='margin-top: 20px; padding: 20px; border: 1px solid {d_color}; border-radius: 8px; background-color: rgba(255,255,255,0.05); text-align: center;'>
-                <span style='color: #888; font-size: 0.9rem;'>Primary Signal</span><br>
+                <span style='color: #D1D5DB; font-size: 0.9rem;'>Primary Signal</span><br>
                 <span style='color: {d_color}; font-size: 2rem; font-weight: bold;'>{decision}</span>
             </div>
             """, unsafe_allow_html=True)
@@ -424,7 +415,7 @@ elif st.session_state["current_page"] == "Dashboard":
                     border-radius: 4px;
                 ">
                     <p style="
-                        color: #E0E0E0; 
+                        color: #FFFFFF; /* [Change] Pure White text */
                         font-size: 1rem; 
                         line-height: 1.6; 
                         margin: 0;
@@ -436,8 +427,9 @@ elif st.session_state["current_page"] == "Dashboard":
                 """, unsafe_allow_html=True)
                 
                 # Leverage Information
+                # [Change] #999 -> #C0C0C0 (Lighter Grey)
                 st.markdown(f"""
-                <div style='font-size: 0.8rem; color: #999; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;'>
+                <div style='font-size: 0.8rem; color: #C0C0C0; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;'>
                 * 📈 <b>Long Target:</b> {LEV_LONG}<br>
                 * 📉 <b>Short Target:</b> {LEV_SHORT}
                 </div>
@@ -451,7 +443,7 @@ elif st.session_state["current_page"] == "Dashboard":
             st.warning("Data syncing...")
 
     # =========================================================
-    # [Right Column] Prices and Forecasts (New Weighted Logic)
+    # [Right Column] Prices and Forecasts
     # =========================================================
     with col2:
         st.markdown(f"**Price Action & Forecast ({IDX_TICKER})**")
@@ -468,9 +460,6 @@ elif st.session_state["current_page"] == "Dashboard":
                     chart_data = chart_df['Close'].replace(0, np.nan).dropna()
                     current_price = chart_data.iloc[-1]
                     
-                    # ------------------------------------------------------------
-                    # [NEW] Weighted Average Forecast Logic
-                    # ------------------------------------------------------------
                     if latest_data:
                         stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
                         
@@ -490,9 +479,6 @@ elif st.session_state["current_page"] == "Dashboard":
                         future_price_5d = current_price
                         total_return = 0
 
-                    # ------------------------------------------------------------
-                    # UI Display
-                    # ------------------------------------------------------------
                     daily_ret = 0
                     if len(chart_data) >= 2:
                         daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
@@ -516,7 +502,7 @@ elif st.session_state["current_page"] == "Dashboard":
                     fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=2)))
 
                     if latest_data:
-                        trend_color = '#9CA3AF'
+                        trend_color = '#D1D5DB' # [Change] Forecast line color brightened
                         if total_return > 0: trend_color = '#00E396'
                         elif total_return < 0: trend_color = '#FF4560'
 
@@ -531,8 +517,9 @@ elif st.session_state["current_page"] == "Dashboard":
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)',
                         margin=dict(l=0, r=0, t=10, b=0),
-                        xaxis=dict(showgrid=False, color='#888'),
-                        yaxis=dict(showgrid=True, gridcolor='#333', color='#888'),
+                        # [Change] Axis colors brightened
+                        xaxis=dict(showgrid=False, color='#D1D5DB'),
+                        yaxis=dict(showgrid=True, gridcolor='#333', color='#D1D5DB'),
                         height=350,
                         showlegend=False
                     )
