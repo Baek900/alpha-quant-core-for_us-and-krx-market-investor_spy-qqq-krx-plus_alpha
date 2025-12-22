@@ -1,17 +1,16 @@
 import os
-import sys  # [추가] 실행 인자(kr/us)를 받기 위해 필요
+import sys
 import torch
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 from supabase import create_client, Client
 
-# [수정] 뉴스 분석 모듈 임포트 제거
-# from news_agent import analyze_market_sentiment 
+# 모델 정의 불러오기
 from model_def import StockClassifierModel
 from data_loader import get_us_data, get_kr_data
 
-# 환경변수 (GitHub Actions용)
+# 환경변수 로드
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
@@ -23,22 +22,29 @@ else:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def save_to_supabase(market, tech_prob, news_score, final_prob, w_tech, w_news):
+def save_to_supabase(market, probs_list, news_score, final_prob, w_tech, w_news):
+    """
+    probs_list: [prob_down, prob_neutral, prob_up]
+    """
     if not supabase: return False
     try:
+        # Action 기준은 최종 상승 확률(final_prob)로 판단
         action = "BUY" if final_prob >= 0.45 else ("SELL" if final_prob <= 0.2 else "HOLD")
         
         data = {
             "market_name": market,
-            "tech_prob": round(float(tech_prob), 4),
+            "prob_down": round(float(probs_list[0]), 4),    # [NEW] 하락
+            "prob_neutral": round(float(probs_list[1]), 4), # [NEW] 횡보
+            "tech_prob": round(float(probs_list[2]), 4),    # 상승 (기존 tech_prob 유지)
             "news_score": int(news_score),
             "final_prob": round(float(final_prob), 4),
             "w_tech": float(w_tech),
             "w_news": float(w_news),
             "action": action
         }
+        
         supabase.table("prediction_logs").insert(data).execute()
-        print(f"✅ [{market}] Supabase 저장 완료")
+        print(f"✅ [{market}] 저장 완료 (Down:{data['prob_down']}, Neut:{data['prob_neutral']}, Up:{data['tech_prob']})")
         return True
     except Exception as e:
         print(f"❌ [{market}] 저장 실패: {e}")
@@ -47,7 +53,7 @@ def save_to_supabase(market, tech_prob, news_score, final_prob, w_tech, w_news):
 def run_analysis_batch(market_option):
     print(f"🚀 분석 시작: {market_option}")
     
-    # 1. 모델 경로 설정
+    # 1. 모델 경로 및 섹터 설정
     if market_option == "NASDAQ (QQQ)":
         MODEL_FILE = os.path.join(BASE_DIR, "models", "us_sector_ai_model_qqq.pth")
         SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
@@ -78,28 +84,30 @@ def run_analysis_batch(market_option):
         print("❌ 데이터 수집 실패")
         return
 
-    # 4. 예측 수행
+    # 4. 예측 수행 (3가지 클래스 확률 추출)
     with torch.no_grad():
         logits = model(input_tensor)
         if isinstance(logits, tuple): logits = logits[1]
         probs = F.softmax(logits, dim=1).squeeze().numpy()
     
+    # [중요] 모델의 출력 순서는 학습 시 라벨 순서인 [0:하락, 1:횡보, 2:상승] 입니다.
+    tech_down = probs[0]
+    tech_neutral = probs[1]
     tech_up = probs[2]
 
-    # 5. [수정] 뉴스 분석 (Step 5 전까지는 50점 고정)
+    # 5. 뉴스 분석 (일단 기본값, 추후 News Agent가 업데이트)
     news_score = 50 
-    news_prob = 0.5
+    news_prob = 0.5 
 
-    # 6. 앙상블
+    # 6. 앙상블 (상승 확률만 보정하여 Signal 생성용으로 사용)
     W_TECH = 0.7
     W_NEWS = 0.3
     final_up = (tech_up * W_TECH) + (news_prob * W_NEWS)
 
-    # 7. DB 저장
-    save_to_supabase(market_option, tech_up, news_score, final_up, W_TECH, W_NEWS)
+    # 7. DB 저장 (3가지 확률 모두 전달)
+    save_to_supabase(market_option, [tech_down, tech_neutral, tech_up], news_score, final_up, W_TECH, W_NEWS)
 
 if __name__ == "__main__":
-    # 실행 시 전달된 인자 확인 (예: python daily_batch.py kr)
     mode = "all"
     if len(sys.argv) > 1:
         mode = sys.argv[1].lower()
