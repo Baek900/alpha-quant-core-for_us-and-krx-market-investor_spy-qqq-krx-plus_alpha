@@ -1,554 +1,188 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import yfinance as yf
-import plotly.graph_objects as go
-import datetime
-from dateutil import parser
-import pytz
-from supabase import create_client, Client
 import os
-from strategy_logic import get_strategy_text
+import sys
+import time
+import torch
+import torch.nn.functional as F
+import numpy as np
+from supabase import create_client, Client
 
-# ==============================================================================
-# 0. Market Statistics (Historical Daily Avg Return for 5-Day Period)
-# ==============================================================================
-MARKET_STATS = {
-    "S&P 500 (SPY)": {
-        "bear": -0.005482, 
-        "neut": 0.000151, 
-        "bull": 0.004402
-    },
-    "NASDAQ (QQQ)": {
-        "bear": -0.006119, 
-        "neut": 0.000125, 
-        "bull": 0.005435
-    },
-    "KOSPI (Korea)": {
-        "bear": -0.002751, 
-        "neut": -0.001029, 
-        "bull": 0.002401
-    }
+# 모듈 임포트
+from model_def import StockClassifierModel
+from data_loader import get_us_data, get_kr_data
+from news_agent import get_news_analysis 
+
+# 환경변수
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+if not SUPABASE_URL:
+    print("⚠️ Supabase 설정 없음. 로컬 테스트 모드")
+    supabase = None
+else:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# [설정] 모델별 검증된 정확도 (Baseline Accuracy)
+MODEL_ACCURACY = {
+    "S&P 500 (SPY)": 0.53,
+    "NASDAQ (QQQ)": 0.58,
+    "KOSPI (Korea)": 0.42
 }
 
-# ==============================================================================
-# 1. Configuration & Custom CSS (Maximum Visibility Theme)
-# ==============================================================================
-st.set_page_config(page_title="TITAN FLOW - AI Advisor", layout="wide", page_icon="T")
-
-st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
-        
-        /* 1. Base Text Settings */
-        html, body, [class*="css"] {
-            font-family: 'Inter', sans-serif;
-            color: #FFFFFF !important;
-        }
-        
-        .stApp {
-            background-color: #0B121F !important;
-        }
-
-        /* 2. Headers */
-        h1, h2, h3, h4, h5, h6 {
-            color: #FFFFFF !important;
-            font-weight: 700 !important;
-        }
-
-        /* 3. Captions & Small Text */
-        div[data-testid="stCaptionContainer"], small, .stCaption {
-            color: #CCCCCC !important;
-            font-size: 0.9rem !important;
-            opacity: 1 !important;
-        }
-        
-        /* 4. Paragraphs */
-        p {
-            color: #E0E0E0 !important;
-            font-size: 1rem !important;
-        }
-
-        /* 5. Hide Default Elements */
-        header {visibility: hidden !important;}
-        footer {visibility: hidden !important;}
-        [data-testid="stSidebar"] {display: none !important;}
-        section[data-testid="stSidebar"] {display: none !important;}
-
-        /* 6. Metric Cards */
-        div[data-testid="stMetric"] {
-            background-color: #121926 !important;
-            border: 1px solid #444444 !important;
-            padding: 15px;
-            border-radius: 8px;
-        }
-        div[data-testid="stMetricLabel"] {
-            color: #DDDDDD !important;
-            font-weight: 500 !important;
-        }
-        div[data-testid="stMetricValue"] {
-            color: #FFFFFF !important;
-            font-weight: 700 !important;
-        }
-
-        /* 7. Buttons */
-        div.stButton > button {
-            width: 100%;
-            background-color: #2563EB;
-            color: white !important;
-            border: 1px solid #60A5FA;
-            border-radius: 6px;
-            font-weight: 600;
-        }
-
-        /* 8. Form Elements */
-        div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
-            background-color: #121926 !important;
-            color: white !important;
-            border: 1px solid #555555 !important;
-        }
-        ul[data-testid="stSelectboxVirtualDropdown"] {
-            background-color: #121926 !important;
-        }
-        li[role="option"] {
-            color: white !important;
-        }
-
-        /* 9. Divider */
-        hr {
-            border-top: 1px solid #555555 !important;
-            margin: 1.5rem 0;
-        }
-        
-        /* 10. Expander */
-        .streamlit-expanderHeader {
-            background-color: #121926 !important;
-        }
-        div[data-testid="stExpanderDetails"] {
-            background-color: #0B121F !important;
-            border: 1px solid #444444;
-        }
-
-        /* 11. Login Dialog Fix */
-        div[role="dialog"] {
-            background-color: #121926 !important;
-            border: 2px solid #6B7280 !important;
-            color: #FFFFFF !important;
-        }
-        div[role="dialog"] h2, div[role="dialog"] p, div[role="dialog"] label {
-            color: #FFFFFF !important;
-        }
-        div[role="dialog"] button[aria-label="Close"] {
-            color: #FFFFFF !important;
-        }
-        div[data-testid="stMarkdownContainer"] p {
-             color: #E0E0E0 !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Initialize Session State
-if "password_correct" not in st.session_state:
-    st.session_state["password_correct"] = False
-
-if "current_page" not in st.session_state:
-    st.session_state["current_page"] = "Home"
-
-# Connect to Supabase
-try:
-    SUPABASE_URL = st.secrets["supabase"]["url"]
-    SUPABASE_KEY = st.secrets["supabase"]["key"]
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-except Exception as e:
-    st.error(f"System Error: {e}")
-    st.stop()
-
-# ==============================================================================
-# 2. Helper Functions
-# ==============================================================================
-def convert_utc_to_kst(utc_str):
+def save_to_supabase(market, probs_list, news_data, final_prob, w_tech, w_news, action):
+    if not supabase: return False
     try:
-        utc_time = parser.parse(utc_str)
-        kst_zone = pytz.timezone('Asia/Seoul')
-        kst_time = utc_time.astimezone(kst_zone)
-        return kst_time.strftime('%Y-%m-%d %H:%M')
-    except:
-        return utc_str
-
-def load_latest_analysis(market_name):
-    try:
-        response = supabase.table("prediction_logs") \
-            .select("*") \
-            .eq("market_name", market_name) \
-            .order("created_at", desc=True) \
-            .limit(2) \
-            .execute()
+        # News Score (Display용 0~100)
+        news_score_display = int((news_data['sentiment'] + 1) * 50)
         
-        if response.data:
-            current_data = response.data[0]
-            previous_data = response.data[1] if len(response.data) > 1 else None
-            return current_data, previous_data
-        else:
-            return None, None
-    except:
-        return None, None
-def logout():
-    st.session_state["password_correct"] = False
-    st.session_state["logged_in_user"] = None
-    st.session_state["current_page"] = "Home"
-    st.rerun()
-
-# ==============================================================================
-# 3. Login Dialog Logic
-# ==============================================================================
-@st.dialog("Member Login") 
-def login_dialog():
-    st.write("Please enter your credentials.")
-    username = st.text_input("Username") 
-    password = st.text_input("Password", type="password")
-
-    if st.button("Access Dashboard"): 
-        if username in st.secrets["users"] and password == st.secrets["users"][username]:
-            st.session_state["password_correct"] = True
-            st.session_state["logged_in_user"] = username
-            st.session_state["current_page"] = "Dashboard"
-            st.rerun()
-        else:
-            st.error("Invalid credentials.")
-
-# ==============================================================================
-# 4. Page Routing Logic
-# ==============================================================================
-
-if st.session_state["password_correct"]:
-    st.session_state["current_page"] = "Dashboard"
-
-# ------------------------------------------------------------------------------
-# PAGE: HOME (Public Landing Page)
-# ------------------------------------------------------------------------------
-if st.session_state["current_page"] == "Home":
-    
-    col_header, col_login = st.columns([6, 1])
-    
-    with col_header:
-        st.markdown("<h1 style='font-size: 3rem; margin-bottom: 0;'>TITAN FLOW</h1>", unsafe_allow_html=True)
-    
-    with col_login:
-        if st.button("🔑 Log In", use_container_width=True):
-            login_dialog()
-
-    st.markdown("<h3 style='color: #FFFFFF; font-weight: 500; margin-top: 10px;'>Advanced Financial Forecasting System powered by TMFG-LSTM</h3>", unsafe_allow_html=True)
-    st.markdown("""
-    <p style='color: #E0E0E0; font-size: 1.1rem;'>
-    This platform leverages deep learning architectures to analyze global market trends, macroeconomics, and sector rotation, providing institutional-grade insights.
-    </p>
-    """, unsafe_allow_html=True)
-    
-    st.divider()
-
-    st.markdown("#### Performance Benchmark (YTD)")
-    st.caption("Strategy vs. S&P 500 (SPY) | Based on 12-month backtesting data")
-    
-    try:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "backtest_result.csv")
+        data = {
+            "market_name": market,
+            "prob_down": float(probs_list[0]),    # 최종 하락 확률
+            "prob_neutral": float(probs_list[1]), # 최종 횡보 확률
+            "tech_prob": float(probs_list[2]),    # 최종 상승 확률 (App 호환성 위해 이름 유지)
+            
+            "news_sentiment": float(news_data['sentiment']),
+            "news_reliability": float(news_data['reliability']),
+            "news_summary": news_data['summary'],
+            "news_score": news_score_display,
+            
+            "final_prob": round(float(final_prob), 4), # 상승 확률 기준 (참고용)
+            "w_tech": round(float(w_tech), 2),
+            "w_news": round(float(w_news), 2),
+            "action": action
+        }
         
-        df = pd.read_csv(file_path)
-        df['Date'] = pd.to_datetime(df['Date'])
-        df.set_index('Date', inplace=True)
-        
-        initial_capital = df['Strategy'].iloc[0]
-        ai_returns = (df['Strategy'] - initial_capital) / initial_capital
-        market_returns = (df['Benchmark'] - initial_capital) / initial_capital
-        
-        final_ai_ret = ai_returns.iloc[-1] * 100
-        final_bm_ret = market_returns.iloc[-1] * 100
-        alpha = final_ai_ret - final_bm_ret
-
-        fig_bench = go.Figure()
-        fig_bench.add_trace(go.Scatter(x=df.index, y=ai_returns, mode='lines', name='Alpha Strategy', line=dict(color='#00E396', width=3))) 
-        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#AAAAAA', dash='dot', width=2))) 
-        
-        fig_bench.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', 
-            plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=0, r=0, t=30, b=0),
-            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), 
-            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickformat='.0%'),
-            legend=dict(orientation="h", y=1.1, font=dict(color="white", size=12)),
-            height=350
-        )
-        
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            st.plotly_chart(fig_bench, use_container_width=True)
-        with c2:
-            st.metric(label="Total Return", value=f"{final_ai_ret:+.2f}%", delta=f"{alpha:+.2f}% Alpha")
-            st.metric(label="Benchmark", value=f"{final_bm_ret:+.2f}%")
-            st.caption("Data source: Verified Backtest")
-
+        supabase.table("prediction_logs").insert(data).execute()
+        print(f"✅ [{market}] 저장 완료 | Action: {action} (Up: {data['tech_prob']:.4f}, Down: {data['prob_down']:.4f})")
+        return True
     except Exception as e:
-        st.error(f"Data Error: {e}")
+        print(f"❌ DB 저장 실패: {e}")
+        return False
 
-    st.divider()
+def run_analysis_batch(market_option):
+    print(f"🚀 배치 시작: {market_option}")
     
-    st.markdown("#### Model Reliability Metrics")
-    st.caption("Validation on unseen test data (2025) | SPY Model")
-
-    col_m1, col_m2, col_m3 = st.columns(3)
-    with col_m1:
-        st.metric(label="Accuracy", value="52.6%", delta="vs Random (33%)")
-        st.caption("Consistent edge over random chance.")
-    with col_m2:
-        st.metric(label="Precision (Buy)", value="64.0%", delta="High Confidence")
-        st.caption("Minimizes false positives in uptrends.")
-    with col_m3:
-        st.metric(label="Recall (Uptrend)", value="55.0%", delta="Opportunity Capture")
-        st.caption("Captures the majority of market rallies.")
-
-    st.divider()
-
-    st.markdown("#### System Architecture")
-    ac1, ac2 = st.columns(2)
-    with ac1:
-        st.markdown("**1. TMFG Network**")
-        st.caption("Filters market noise to identify structural asset correlations.")
-    with ac2:
-        st.markdown("**2. LSTM + Attention**")
-        st.caption("Captures temporal dependencies and sector rotation dynamics.")
-
-# ------------------------------------------------------------------------------
-# PAGE: DASHBOARD (Member Only)
-# ------------------------------------------------------------------------------
-elif st.session_state["current_page"] == "Dashboard":
-    
-    nav_col1, nav_col2 = st.columns([3, 1])
-    
-    with nav_col1:
-        market_option = st.selectbox(
-            "Select Market", 
-            ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"],
-            label_visibility="collapsed" 
-        )
-    
-    with nav_col2:
-        if st.button("Sign Out"):
-            logout()
-    
-    st.divider()
-
-    top_col1, top_col2 = st.columns([4, 1])
-    
-    with top_col1:
-        st.markdown(f"## {market_option}") 
-        st.caption("Live Market Analysis & Signal Generation")
-    
-    with top_col2:
-         st.markdown(f"<div style='text-align: right; color: #FFFFFF; font-weight: bold;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
-
+    # 1. 설정 로드
     if market_option == "NASDAQ (QQQ)":
-        IDX_TICKER, LEV_LONG, LEV_SHORT = "QQQ", "QLD (2x) / TQQQ (3x)", "QID (2x) / SQQQ (3x)"
+        MODEL_FILE = os.path.join(BASE_DIR, "models", "us_sector_ai_model_qqq.pth")
+        SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
+        search_query = "latest market sentiment news for NASDAQ 100 QQQ ETF today macro economics"
     elif market_option == "S&P 500 (SPY)":
-        IDX_TICKER, LEV_LONG, LEV_SHORT = "SPY", "SSO (2x) / UPRO (3x)", "SDS (2x) / SPXU (3x)"
-    else: 
-        IDX_TICKER, LEV_LONG, LEV_SHORT = "^KS11", "KODEX Leverage", "KODEX 200 Inverse 2X"
+        MODEL_FILE = os.path.join(BASE_DIR, "models", "us_spy_target_best_model.pth")
+        SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
+        search_query = "latest market sentiment news for S&P 500 SPY ETF today macro economics"
+    else: # KOSPI
+        MODEL_FILE = os.path.join(BASE_DIR, "models", "kospi_model.pth")
+        SECTORS = []
+        search_query = "latest south korea kospi stock market news today macro economics"
+
+    # 2. 기술적 모델 예측
+    device = torch.device('cpu')
+    model = StockClassifierModel().to(device)
+    
+    try:
+        model.load_state_dict(torch.load(MODEL_FILE, map_location=device))
+        model.eval()
+    except Exception as e:
+        print(f"❌ 모델 로드 실패: {e}")
+        return
+
+    if "KOSPI" in market_option:
+        input_tensor, _ = get_kr_data()
+    else:
+        input_tensor, _ = get_us_data(SECTORS)
+
+    if input_tensor is None:
+        print("❌ 데이터 수집 실패")
+        return
+
+    with torch.no_grad():
+        logits = model(input_tensor)
+        if isinstance(logits, tuple): logits = logits[1]
+        probs = F.softmax(logits, dim=1).squeeze().numpy()
+    
+    # [기술적 확률]
+    t_down, t_neutral, t_up = probs[0], probs[1], probs[2]
+
+    # 3. 뉴스 분석 수행
+    news_data = get_news_analysis(market_option, search_query)
+    sentiment = news_data['sentiment']   # -1 ~ 1
+    reliability = news_data['reliability'] # 0 ~ 1
+    
+    # 4. [핵심] 앙상블 가중치 및 확률 계산
+    
+    # (1) 가중치 결정 (신뢰도 기반)
+    acc_model = MODEL_ACCURACY.get(market_option, 0.5)
+    total_weight = acc_model + reliability
+    if total_weight == 0: total_weight = 1
+    
+    w_tech = acc_model / total_weight
+    w_news = reliability / total_weight
+    
+    # (2) 뉴스 감정을 확률 벡터로 변환
+    # 감정이 양수면 Up확률 증가, 음수면 Down확률 증가, 0에 가까우면 Neutral 증가
+    # 수식: S > 0 -> Up=S, Neutral=1-S
+    #       S < 0 -> Down=|S|, Neutral=1-|S|
+    
+    n_up = max(0.0, sentiment)
+    n_down = max(0.0, -sentiment)
+    n_neutral = 1.0 - abs(sentiment)
+    
+    # (3) 최종 확률 앙상블 (Weighted Sum)
+    final_down = (t_down * w_tech) + (n_down * w_news)
+    final_neutral = (t_neutral * w_tech) + (n_neutral * w_news)
+    final_up = (t_up * w_tech) + (n_up * w_news)
+    
+    # 합이 1이 되도록 정규화 (소수점 오차 보정)
+    total_prob = final_down + final_neutral + final_up
+    final_down /= total_prob
+    final_neutral /= total_prob
+    final_up /= total_prob
+    
+    # 5. 의사 결정 (Threshold 0.45 Rule)
+    # 가장 높은 확률을 찾음
+    prob_map = {
+        "SELL": final_down,
+        "HOLD": final_neutral,
+        "BUY": final_up
+    }
+    
+    best_action = max(prob_map, key=prob_map.get)
+    max_prob = prob_map[best_action]
+    
+    # [조건] 셋 중 하나라도 0.45를 넘지 못하면 판단 보류(HOLD)
+    if max_prob < 0.45:
+        final_action = "HOLD"
+        print(f"⚖️ 판단 보류: 최대 확률({max_prob:.4f})이 임계값(0.45) 미달 -> HOLD 강제")
+    else:
+        final_action = best_action
         
-    latest_data, prev_data = load_latest_analysis(market_option)
+    # 6. 저장
+    save_to_supabase(
+        market_option, 
+        [final_down, final_neutral, final_up], # DB 필드 순서 매핑 주의
+        news_data, 
+        final_up, # 메인 display용은 상승 확률
+        w_tech, 
+        w_news,
+        final_action
+    )
 
-    col1, col2 = st.columns([1, 1.5])
+if __name__ == "__main__":
+    mode = "all"
+    if len(sys.argv) > 1:
+        mode = sys.argv[1].lower()
 
-    # =========================================================
-    # [Left Column] Signal (UPDATED with Real Prob & Weights)
-    # =========================================================
-    with col1:
-        if latest_data:
-            date_str = convert_utc_to_kst(latest_data['created_at'])
-            
-            # DB에서 가져온 Raw 확률 (없으면 0.0 처리)
-            p_up = latest_data.get('tech_prob', 0.0)
-            p_down = latest_data.get('prob_down', 0.0)
-            p_neutral = latest_data.get('prob_neutral', 0.0)
-            
-            # 호환성: 과거 데이터에 Down/Neutral이 없으면 계산
-            if p_down == 0.0 and p_neutral == 0.0:
-                p_down = (1.0 - p_up) * 0.5
-                p_neutral = (1.0 - p_up) * 0.5
-            
-            # 최종 확률 (앙상블 결과)
-            final_prob = latest_data['final_prob']
-            
-            # 가중치 정보 (디스플레이용)
-            w_tech = latest_data.get('w_tech', 0.7)
-            w_news = latest_data.get('w_news', 0.3)
+    if mode == "kr": markets = ["KOSPI (Korea)"]
+    elif mode == "us": markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)"]
+    else: markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]
 
-            st.markdown(f"**Analysis Time:** {date_str}")
-            
-            # 3가지 확률 표시
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Bullish", f"{p_up*100:.1f}%")
-            m2.metric("Bearish", f"{p_down*100:.1f}%") 
-            m3.metric("Neutral", f"{p_neutral*100:.1f}%")
-            
-            # Primary Signal (Final Prob 기준)
-            decision = "HOLD"
-            d_color = "#CCCCCC"
-            if final_prob >= 0.45:
-                decision = "BUY"
-                d_color = "#00E396"
-            elif final_prob <= 0.2:
-                decision = "SELL"
-                d_color = "#FF4560"
-            
-            st.markdown(f"""
-            <div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #121926; text-align: center;'>
-                <span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Primary Signal (Weighted)</span><br>
-                <span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            prev_signal = prev_data['action'] if prev_data else None
-            strategy_text = get_strategy_text(prev_signal, decision)
-
-            with st.expander("View Strategy Details", expanded=True):
-                st.write("") 
-                st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
-                
-                st.markdown(f"""
-                <div style="
-                    margin-top: 10px; margin-bottom: 15px; padding: 15px;
-                    background-color: #000000; border: 1px solid #7C3AED; border-radius: 4px;
-                ">
-                    <p style="color: #FFFFFF; font-size: 1rem; line-height: 1.6; margin: 0; font-weight: 600;">
-                        {strategy_text}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown(f"""
-                <div style='font-size: 0.9rem; color: #CCCCCC; margin-top: 10px; border-top: 2px solid #555; padding-top: 10px; font-weight: 500;'>
-                * 📈 <b>Long Target:</b> {LEV_LONG}<br>
-                * 📉 <b>Short Target:</b> {LEV_SHORT}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.write("")
-                
-            if st.button("Refresh Analysis"):
-                st.rerun()
-        else:
-            st.warning("Data syncing...")
-
-    # =========================================================
-    # [Right Column] Prices and Forecasts (UPDATED with Ensemble Logic)
-    # =========================================================
-    with col2:
-        st.markdown(f"**Price Action & Forecast ({IDX_TICKER})**")
-        try:
-            with st.spinner("Fetching market data..."):
-                chart_df = yf.download(IDX_TICKER, period="6mo", progress=False, auto_adjust=True)
-            
-            if not chart_df.empty:
-                if isinstance(chart_df.columns, pd.MultiIndex):
-                    try: chart_df = chart_df.xs(IDX_TICKER, axis=1, level=0)
-                    except: chart_df.columns = chart_df.columns.get_level_values(0)
-
-                if 'Close' in chart_df.columns:
-                    chart_data = chart_df['Close'].replace(0, np.nan).dropna()
-                    current_price = chart_data.iloc[-1]
-                    
-                    if latest_data:
-                        stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
-                        
-                        # [핵심 변경] 앙상블된 final_prob를 기준으로 방향성 강도(Magnitude) 계산
-                        final_prob = latest_data['final_prob']
-                        
-                        # 0.5(중립)를 기준으로 -1 ~ 1 사이의 강도 점수(Score)로 변환
-                        ensemble_score = (final_prob - 0.5) * 2 
-                        
-                        # 강도에 따라 Bull/Bear 평균 수익률 적용
-                        if ensemble_score > 0:
-                            expected_return = ensemble_score * stats['bull']
-                        else:
-                            expected_return = abs(ensemble_score) * stats['bear']
-                            
-                        # 5일치 복리 적용
-                        future_price_5d = current_price * ((1 + expected_return) ** 5)
-                        total_return = (future_price_5d / current_price - 1) * 100
-                        
-                    else:
-                        daily_expected_move = 0
-                        future_price_5d = current_price
-                        total_return = 0
-
-                    daily_ret = 0
-                    if len(chart_data) >= 2:
-                        daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
-
-                    pc1, pc2 = st.columns(2)
-                    with pc1:
-                        st.metric("Current Price", f"{current_price:,.2f}", f"{daily_ret:+.2f}% (Daily)")
-                    with pc2:
-                        st.metric("AI Target (5 Days Later)", f"{future_price_5d:,.2f}", f"{total_return:+.2f}% (5d Exp.)")
-
-                    # Draw chart
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=3))) 
-
-                    if latest_data:
-                        trend_color = '#FFFFFF' 
-                        if total_return > 0: trend_color = '#00E396'
-                        elif total_return < 0: trend_color = '#FF4560'
-
-                        last_date = chart_data.index[-1]
-                        future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
-                        
-                        # 차트 시각화용 데이터 생성 (compound interest logic)
-                        future_prices = [current_price]
-                        for i in range(1, 6):
-                             future_prices.append(current_price * ((1 + expected_return) ** i))
-
-                        fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
-
-                    fig.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        margin=dict(l=0, r=0, t=10, b=0),
-                        xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'),
-                        yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'),
-                        height=350,
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"Chart Error: {e}")
-            
-    # =========================================================
-    # [Bottom] News Section (UPDATED with Details)
-    # =========================================================
-    st.markdown("---")
-    st.markdown("**Global Sentiment & Macro Insights**")
-    if latest_data:
-        nc1, nc2 = st.columns([1, 3])
-        with nc1:
-            # 감정 점수 (-1 ~ 1) 표시
-            sent_score = latest_data.get('news_sentiment', 0.0)
-            
-            sent_label = "Neutral"
-            sent_color = "off" # default gray
-            if sent_score > 0.3: 
-                sent_label = "Positive"
-                sent_color = "normal" # green in streamlit metric
-            elif sent_score < -0.3: 
-                sent_label = "Negative"
-                sent_color = "inverse" # red (conceptually, though metric color is auto)
-
-            st.metric("Sentiment Score", f"{sent_score:.2f}", sent_label)
-            
-            # 신뢰도 표시 (Reliability)
-            rel_score = latest_data.get('news_reliability', 0.0)
-            st.caption(f"News Reliability: {rel_score*100:.0f}%")
-            
-        with nc2:
-            # 뉴스 요약 표시
-            summary = latest_data.get('news_summary', "No summary available.")
-            st.info(f"📰 **Market Summary:**\n\n{summary}")
+    print(f"🔄 Mode: {mode} / Targets: {markets}")
+    
+    for i, m in enumerate(markets):
+        run_analysis_batch(m)
+        
+        if i < len(markets) - 1:
+            print("⏳ API 요청 제한 방지를 위해 20초 대기 중...")
+            time.sleep(20)
