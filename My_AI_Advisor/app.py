@@ -282,7 +282,6 @@ if st.session_state["current_page"] == "Home":
     with col_m1: st.metric("Accuracy", "52.6%", "vs Random (33%)")
     with col_m2: st.metric("Precision (Buy)", "64.0%", "High Confidence")
     with col_m3: st.metric("Recall (Uptrend)", "55.0%", "Opportunity Capture")
-
 # ------------------------------------------------------------------------------
 # PAGE: DASHBOARD
 # ------------------------------------------------------------------------------
@@ -327,14 +326,13 @@ elif st.session_state["current_page"] == "Dashboard":
 
             st.markdown(f"**Analysis Time:** {date_str}")
             
-            # [수정] 섹션 헤더 및 설명 추가 (뉴스 영향력 명시)
+            # 섹션 헤더 및 설명
             st.markdown("##### 🎯 Final Ensemble Probabilities")
             st.caption("The delta values (Δ) indicate how **News Sentiment** adjusted the Technical Baseline.")
             
             m1, m2, m3 = st.columns(3)
             
-            # 2. 메트릭 표시 (Tooltip 활용)
-            # Bullish
+            # 2. 메트릭 표시
             m1.metric(
                 "Bullish", 
                 f"{f_up*100:.1f}%", 
@@ -342,7 +340,6 @@ elif st.session_state["current_page"] == "Dashboard":
                 help=f"🤖 Tech Model: {t_up*100:.1f}%\n📰 News Impact: {f_up-t_up:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_up*100:.1f}%"
             )
             
-            # Bearish (Inverse delta color: 상승하면 빨간색)
             m2.metric(
                 "Bearish", 
                 f"{f_down*100:.1f}%", 
@@ -351,7 +348,6 @@ elif st.session_state["current_page"] == "Dashboard":
                 help=f"🤖 Tech Model: {t_down*100:.1f}%\n📰 News Impact: {f_down-t_down:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_down*100:.1f}%"
             )
             
-            # Neutral
             m3.metric(
                 "Neutral", 
                 f"{f_neutral*100:.1f}%", 
@@ -360,7 +356,7 @@ elif st.session_state["current_page"] == "Dashboard":
                 help=f"🤖 Tech Model: {t_neutral*100:.1f}%\n📰 News Impact: {f_neutral-t_neutral:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_neutral*100:.1f}%"
             )
             
-            # 3. 기술적 모델 원본 데이터 보기 (접기/펴기)
+            # 3. 기술적 모델 원본 데이터 보기
             with st.expander("📊 View Technical Model Baseline", expanded=False):
                 st.caption("Raw probabilities from TMFG-LSTM model (Before News adjustment)")
                 t1, t2, t3 = st.columns(3)
@@ -395,8 +391,15 @@ elif st.session_state["current_page"] == "Dashboard":
         else:
             st.warning("Data syncing...")
 
-    # [RIGHT] Chart & Forecast
+    # [RIGHT] Chart & Forecast & News (Moved Here)
     with col2:
+        # ---------------------------------------------------------
+        # [수정 1] 라인을 맞추기 위해 상단에 빈 줄 추가 (Spacer)
+        # ---------------------------------------------------------
+        st.write("")
+        st.write("")
+        st.write("") 
+
         st.markdown(f"**Price Action & Forecast ({IDX})**")
         try:
             with st.spinner("Fetching market data..."):
@@ -418,7 +421,6 @@ elif st.session_state["current_page"] == "Dashboard":
                         f_down = latest_data.get('fin_prob_down', 0.0)
                         f_neutral = latest_data.get('fin_prob_neutral', 0.0)
                         
-                        # [가중평균 수익률 계산]
                         daily_expected_return = (f_up * stats['bull']) + \
                                                 (f_down * stats['bear']) + \
                                                 (f_neutral * stats['neut'])
@@ -458,22 +460,26 @@ elif st.session_state["current_page"] == "Dashboard":
                     st.plotly_chart(fig, use_container_width=True)
         except Exception as e: st.error(f"Chart Error: {e}")
             
-    # [BOTTOM] News Section
-    st.markdown("---")
-    st.markdown("**Global Sentiment & Macro Insights**")
-    if latest_data:
-        nc1, nc2 = st.columns([1, 3])
-        with nc1:
-            sent_score = latest_data.get('news_sentiment', 0.0)
-            sent_label = "Neutral"
-            if sent_score > 0.3: sent_label = "Positive"
-            elif sent_score < -0.3: sent_label = "Negative"
+        # ---------------------------------------------------------
+        # [수정 2] News Section을 여기(차트 바로 아래)로 이동
+        # ---------------------------------------------------------
+        st.write("") # 차트와의 간격
+        st.markdown("##### Global Sentiment & Macro Insights")
+        
+        if latest_data:
+            # col2 내부에서 다시 컬럼을 나눕니다 (Nested Columns)
+            nc1, nc2 = st.columns([1, 2.5]) 
+            with nc1:
+                sent_score = latest_data.get('news_sentiment', 0.0)
+                sent_label = "Neutral"
+                if sent_score > 0.3: sent_label = "Positive"
+                elif sent_score < -0.3: sent_label = "Negative"
 
-            st.metric("Sentiment Score", f"{sent_score * 100:.1f}%", sent_label)
-            
-            rel_score = latest_data.get('news_reliability', 0.0)
-            st.caption(f"News Reliability: {rel_score * 100:.1f}%")
-            
-        with nc2:
-            summary = latest_data.get('news_summary', "No summary available.")
-            st.info(f"📰 **Market Summary (English):**\n\n{summary}")
+                st.metric("Sentiment Score", f"{sent_score * 100:.1f}%", sent_label)
+                
+                rel_score = latest_data.get('news_reliability', 0.0)
+                st.caption(f"News Reliability: {rel_score * 100:.1f}%")
+                
+            with nc2:
+                summary = latest_data.get('news_summary', "No summary available.")
+                st.info(f"📰 **Market Summary (English):**\n\n{summary}")
