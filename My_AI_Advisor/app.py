@@ -8,7 +8,9 @@ from dateutil import parser
 import pytz
 from supabase import create_client, Client
 import os
-from strategy_logic import get_strategy_text
+
+# [수정 1] 외부 파일 의존성 제거 (직접 구현을 위해 삭제)
+# from strategy_logic import get_strategy_text 
 
 # ==============================================================================
 # 0. Market Statistics (Historical Daily Avg Return for 5-Day Period)
@@ -199,6 +201,30 @@ def logout():
     st.session_state["current_page"] = "Home"
     st.rerun()
 
+# [수정 2] 시장별 맞춤 전략 텍스트 생성 함수 추가
+def get_strategy_text(market_name, prev_signal, current_signal):
+    """
+    시장(Market)과 신호(Signal)에 따라 적절한 매매 전략 텍스트를 반환합니다.
+    """
+    # 1. 시장별 ETF 티커 설정
+    if "NASDAQ" in market_name:
+        target_long = "TQQQ (or QLD)"
+        target_short = "SQQQ (or QID)"
+    elif "S&P 500" in market_name:
+        target_long = "UPRO (or SSO)"
+        target_short = "SPXU (or SDS)"
+    else: # KOSPI
+        target_long = "KODEX Leverage"
+        target_short = "KODEX 200 Inverse"
+
+    # 2. 신호별 멘트 생성
+    if current_signal == "BUY":
+        return f"**Bullish Trend Detected.** The AI model probabilities indicate a structural uptrend. It is recommended to accumulate **{target_long}**. Maintain exposure while monitoring for trend exhaustion."
+    elif current_signal == "SELL":
+        return f"**Bearish Risk Detected.** Market probabilities have shifted downward. It is advised to liquidate long positions and hedge downside risk using **{target_short}** or hold Cash."
+    else:
+        return "**Neutral / Uncertain Market.** No clear directional signal is present. It is advised to **Hold Cash** and wait for a breakout confirmation before entering new positions."
+
 # ==============================================================================
 # 3. Login Dialog Logic
 # ==============================================================================
@@ -365,34 +391,25 @@ elif st.session_state["current_page"] == "Dashboard":
         if latest_data:
             date_str = convert_utc_to_kst(latest_data['created_at'])
             
-            # DB에서 가져온 Raw 확률 (없으면 0.0 처리)
             p_up = latest_data.get('tech_prob', 0.0)
             p_down = latest_data.get('prob_down', 0.0)
             p_neutral = latest_data.get('prob_neutral', 0.0)
             
-            # 호환성: 과거 데이터에 Down/Neutral이 없으면 계산
             if p_down == 0.0 and p_neutral == 0.0:
                 p_down = (1.0 - p_up) * 0.5
                 p_neutral = (1.0 - p_up) * 0.5
             
-            # 최종 확률 (앙상블 결과)
             final_prob = latest_data['final_prob']
-            
-            # 가중치 정보 (디스플레이용)
             w_tech = latest_data.get('w_tech', 0.7)
             w_news = latest_data.get('w_news', 0.3)
 
             st.markdown(f"**Analysis Time:** {date_str}")
             
-            # 3가지 확률 표시
             m1, m2, m3 = st.columns(3)
             m1.metric("Bullish", f"{p_up*100:.1f}%")
             m2.metric("Bearish", f"{p_down*100:.1f}%") 
             m3.metric("Neutral", f"{p_neutral*100:.1f}%")
             
-            # Primary Signal (Final Prob 기준)
-            # [주의] DB에 'action' 필드가 있으면 그것을 우선 사용
-            # (daily_batch.py에서 로직에 의해 결정된 값)
             decision = latest_data.get('action', "HOLD")
             
             d_color = "#CCCCCC"
@@ -409,7 +426,9 @@ elif st.session_state["current_page"] == "Dashboard":
             """, unsafe_allow_html=True)
             
             prev_signal = prev_data['action'] if prev_data else None
-            strategy_text = get_strategy_text(prev_signal, decision)
+            
+            # [수정 3] 시장 정보(market_option)를 함께 전달하여 올바른 텍스트 생성
+            strategy_text = get_strategy_text(market_option, prev_signal, decision)
 
             with st.expander("View Strategy Details", expanded=True):
                 st.write("") 
@@ -461,19 +480,15 @@ elif st.session_state["current_page"] == "Dashboard":
                     if latest_data:
                         stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
                         
-                        # [핵심 변경] 앙상블된 final_prob를 기준으로 방향성 강도(Magnitude) 계산
                         final_prob = latest_data['final_prob']
                         
-                        # 0.5(중립)를 기준으로 -1 ~ 1 사이의 강도 점수(Score)로 변환
                         ensemble_score = (final_prob - 0.5) * 2 
                         
-                        # 강도에 따라 Bull/Bear 평균 수익률 적용
                         if ensemble_score > 0:
                             expected_return = ensemble_score * stats['bull']
                         else:
                             expected_return = abs(ensemble_score) * stats['bear']
                             
-                        # 5일치 복리 적용
                         future_price_5d = current_price * ((1 + expected_return) ** 5)
                         total_return = (future_price_5d / current_price - 1) * 100
                         
@@ -492,7 +507,6 @@ elif st.session_state["current_page"] == "Dashboard":
                     with pc2:
                         st.metric("AI Target (5 Days Later)", f"{future_price_5d:,.2f}", f"{total_return:+.2f}% (5d Exp.)")
 
-                    # Draw chart
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=3))) 
 
@@ -504,7 +518,6 @@ elif st.session_state["current_page"] == "Dashboard":
                         last_date = chart_data.index[-1]
                         future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
                         
-                        # 차트 시각화용 데이터 생성 (compound interest logic)
                         future_prices = [current_price]
                         for i in range(1, 6):
                              future_prices.append(current_price * ((1 + expected_return) ** i))
@@ -532,7 +545,6 @@ elif st.session_state["current_page"] == "Dashboard":
     if latest_data:
         nc1, nc2 = st.columns([1, 3])
         with nc1:
-            # 1. 감정 점수 (Sentiment)
             sent_score = latest_data.get('news_sentiment', 0.0)
             
             sent_label = "Neutral"
@@ -541,17 +553,11 @@ elif st.session_state["current_page"] == "Dashboard":
             elif sent_score < -0.3: 
                 sent_label = "Negative"
 
-            # [수정됨] 소수점 1자리 퍼센트로 변환 (예: 54.2%)
-            # sent_score는 -1.0 ~ 1.0 범위이므로 100을 곱함
             st.metric("Sentiment Score", f"{sent_score * 100:.1f}%", sent_label)
             
-            # 2. 신뢰도 (Reliability)
             rel_score = latest_data.get('news_reliability', 0.0)
-            
-            # [수정됨] 소수점 1자리 퍼센트로 변환 (예: 85.1%)
             st.caption(f"News Reliability: {rel_score * 100:.1f}%")
             
         with nc2:
-            # 뉴스 요약 표시
             summary = latest_data.get('news_summary', "No summary available.")
-            st.info(f"📰 **Market Summary:**\n\n{summary}")
+            st.info(f"📰 **Market Summary (English):**\n\n{summary}")
