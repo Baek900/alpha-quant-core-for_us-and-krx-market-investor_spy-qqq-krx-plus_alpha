@@ -1,6 +1,6 @@
 import os
 import sys
-import time  # [추가] 대기 시간을 위해 필요
+import time
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -9,7 +9,6 @@ from supabase import create_client, Client
 # 모듈 임포트
 from model_def import StockClassifierModel
 from data_loader import get_us_data, get_kr_data
-# [중요] news_agent.py에서 함수만 깔끔하게 가져옵니다.
 from news_agent import get_news_analysis 
 
 # 환경변수
@@ -31,34 +30,31 @@ MODEL_ACCURACY = {
     "KOSPI (Korea)": 0.42
 }
 
-def save_to_supabase(market, probs_list, news_data, final_prob, w_tech, w_news):
+def save_to_supabase(market, probs_list, news_data, final_prob, w_tech, w_news, action):
     if not supabase: return False
     try:
-        # Action 결정 (임계값 0.45 / 0.2)
-        action = "BUY" if final_prob >= 0.45 else ("SELL" if final_prob <= 0.2 else "HOLD")
-        
         # News Score (Display용 0~100)
         news_score_display = int((news_data['sentiment'] + 1) * 50)
         
         data = {
             "market_name": market,
-            "prob_down": float(probs_list[0]),
-            "prob_neutral": float(probs_list[1]),
-            "tech_prob": float(probs_list[2]), # 상승 확률
+            "prob_down": float(probs_list[0]),    # 최종 하락 확률
+            "prob_neutral": float(probs_list[1]), # 최종 횡보 확률
+            "tech_prob": float(probs_list[2]),    # 최종 상승 확률 (App 호환성 위해 이름 유지)
             
             "news_sentiment": float(news_data['sentiment']),
             "news_reliability": float(news_data['reliability']),
             "news_summary": news_data['summary'],
             "news_score": news_score_display,
             
-            "final_prob": round(float(final_prob), 4),
+            "final_prob": round(float(final_prob), 4), # 상승 확률 기준 (참고용)
             "w_tech": round(float(w_tech), 2),
             "w_news": round(float(w_news), 2),
             "action": action
         }
         
         supabase.table("prediction_logs").insert(data).execute()
-        print(f"✅ [{market}] 저장 완료 | Tech: {data['tech_prob']}(w={data['w_tech']}) + News: {data['news_sentiment']}(w={data['w_news']}) -> Final: {data['final_prob']}")
+        print(f"✅ [{market}] 저장 완료 | Action: {action} (Up: {data['tech_prob']:.4f}, Down: {data['prob_down']:.4f})")
         return True
     except Exception as e:
         print(f"❌ DB 저장 실패: {e}")
@@ -106,30 +102,72 @@ def run_analysis_batch(market_option):
         if isinstance(logits, tuple): logits = logits[1]
         probs = F.softmax(logits, dim=1).squeeze().numpy()
     
-    # [하락, 횡보, 상승]
-    tech_down, tech_neutral, tech_up = probs[0], probs[1], probs[2]
+    # [기술적 확률]
+    t_down, t_neutral, t_up = probs[0], probs[1], probs[2]
 
-    # 3. 뉴스 분석 수행 (외부 모듈 호출)
+    # 3. 뉴스 분석 수행
     news_data = get_news_analysis(market_option, search_query)
+    sentiment = news_data['sentiment']   # -1 ~ 1
+    reliability = news_data['reliability'] # 0 ~ 1
     
-    # 4. [핵심] 앙상블 가중치 계산 (Dynamic Weighting)
-    acc_model = MODEL_ACCURACY.get(market_option, 0.5) 
-    rel_news = news_data['reliability']
+    # 4. [핵심] 앙상블 가중치 및 확률 계산
     
-    total_weight = acc_model + rel_news
-    if total_weight == 0: total_weight = 1 
+    # (1) 가중치 결정 (신뢰도 기반)
+    acc_model = MODEL_ACCURACY.get(market_option, 0.5)
+    total_weight = acc_model + reliability
+    if total_weight == 0: total_weight = 1
     
     w_tech = acc_model / total_weight
-    w_news = rel_news / total_weight
+    w_news = reliability / total_weight
     
-    # 뉴스 감정점수(-1~1)를 확률(0~1)로 변환
-    news_prob = 0.5 + (news_data['sentiment'] / 2.0)
+    # (2) 뉴스 감정을 확률 벡터로 변환
+    # 감정이 양수면 Up확률 증가, 음수면 Down확률 증가, 0에 가까우면 Neutral 증가
+    # 수식: S > 0 -> Up=S, Neutral=1-S
+    #       S < 0 -> Down=|S|, Neutral=1-|S|
     
-    # 최종 확률 계산
-    final_up = (tech_up * w_tech) + (news_prob * w_news)
-
-    # 5. 저장
-    save_to_supabase(market_option, [tech_down, tech_neutral, tech_up], news_data, final_up, w_tech, w_news)
+    n_up = max(0.0, sentiment)
+    n_down = max(0.0, -sentiment)
+    n_neutral = 1.0 - abs(sentiment)
+    
+    # (3) 최종 확률 앙상블 (Weighted Sum)
+    final_down = (t_down * w_tech) + (n_down * w_news)
+    final_neutral = (t_neutral * w_tech) + (n_neutral * w_news)
+    final_up = (t_up * w_tech) + (n_up * w_news)
+    
+    # 합이 1이 되도록 정규화 (소수점 오차 보정)
+    total_prob = final_down + final_neutral + final_up
+    final_down /= total_prob
+    final_neutral /= total_prob
+    final_up /= total_prob
+    
+    # 5. 의사 결정 (Threshold 0.45 Rule)
+    # 가장 높은 확률을 찾음
+    prob_map = {
+        "SELL": final_down,
+        "HOLD": final_neutral,
+        "BUY": final_up
+    }
+    
+    best_action = max(prob_map, key=prob_map.get)
+    max_prob = prob_map[best_action]
+    
+    # [조건] 셋 중 하나라도 0.45를 넘지 못하면 판단 보류(HOLD)
+    if max_prob < 0.45:
+        final_action = "HOLD"
+        print(f"⚖️ 판단 보류: 최대 확률({max_prob:.4f})이 임계값(0.45) 미달 -> HOLD 강제")
+    else:
+        final_action = best_action
+        
+    # 6. 저장
+    save_to_supabase(
+        market_option, 
+        [final_down, final_neutral, final_up], # DB 필드 순서 매핑 주의
+        news_data, 
+        final_up, # 메인 display용은 상승 확률
+        w_tech, 
+        w_news,
+        final_action
+    )
 
 if __name__ == "__main__":
     mode = "all"
@@ -145,8 +183,6 @@ if __name__ == "__main__":
     for i, m in enumerate(markets):
         run_analysis_batch(m)
         
-        # [수정] 연속 실행 시 API 에러 방지를 위해 대기 시간 추가
-        # 마지막 항목이 아닐 때만 대기
         if i < len(markets) - 1:
             print("⏳ API 요청 제한 방지를 위해 20초 대기 중...")
             time.sleep(20)
