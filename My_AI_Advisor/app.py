@@ -51,6 +51,7 @@ st.markdown("""
         h1, h2, h3, h4, h5, h6 {
             color: #FFFFFF !important;
             font-weight: 700 !important;
+            margin-bottom: 0.5rem !important; /* 헤더 아래 간격 조정 */
         }
 
         div[data-testid="stCaptionContainer"], small, .stCaption {
@@ -131,6 +132,17 @@ st.markdown("""
         }
         div[data-testid="stMarkdownContainer"] p {
              color: #E0E0E0 !important;
+        }
+        
+        /* [수정] 툴팁(Help) 스타일 개선: 너비 제한 및 줄바꿈 적용 */
+        div[data-testid="stTooltipContent"] {
+            background-color: #1E293B !important; /* 조금 더 밝은 배경 */
+            border: 1px solid #475569 !important;
+            color: #E2E8F0 !important;
+            font-family: 'Inter', monospace !important; /* 고정폭 글꼴 느낌 */
+            white-space: pre-wrap !important; /* 줄바꿈 유지 */
+            max-width: 300px !important; /* 최대 너비 제한 */
+            font-size: 0.85rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -245,9 +257,6 @@ if st.session_state["current_page"] == "Home":
     
     st.divider()
 
-    st.markdown("#### Performance Benchmark (YTD)")
-    st.caption("Strategy vs. S&P 500 (SPY) | Based on 12-month backtesting data")
-    
     # (Home page chart logic omitted for brevity - same as before)
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -288,6 +297,7 @@ if st.session_state["current_page"] == "Home":
 # ------------------------------------------------------------------------------
 elif st.session_state["current_page"] == "Dashboard":
     
+    # [상단 네비게이션]
     nav_col1, nav_col2 = st.columns([3, 1])
     with nav_col1:
         market_option = st.selectbox("Select Market", ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"], label_visibility="collapsed")
@@ -296,6 +306,7 @@ elif st.session_state["current_page"] == "Dashboard":
     
     st.divider()
 
+    # [시장 제목 및 상태]
     top_col1, top_col2 = st.columns([4, 1])
     with top_col1:
         st.markdown(f"## {market_option}") 
@@ -303,64 +314,44 @@ elif st.session_state["current_page"] == "Dashboard":
     with top_col2:
          st.markdown(f"<div style='text-align: right; color: #FFFFFF; font-weight: bold;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
 
+    # [설정 및 데이터 로드]
     if market_option == "NASDAQ (QQQ)": IDX, LEV_LONG, LEV_SHORT = "QQQ", "QLD/TQQQ", "QID/SQQQ"
     elif market_option == "S&P 500 (SPY)": IDX, LEV_LONG, LEV_SHORT = "SPY", "SSO/UPRO", "SDS/SPXU"
     else: IDX, LEV_LONG, LEV_SHORT = "^KS11", "KODEX Leverage", "KODEX 200 Inverse"
         
     latest_data, prev_data = load_latest_analysis(market_option)
 
-    col1, col2 = st.columns([1, 1.5])
+    # [수정] 레이아웃 재구성: 상단 2단 컬럼 (왼쪽: 시그널, 오른쪽: 뉴스)
+    col_signal, col_news = st.columns([1.2, 1]) # 비율 조정 (시그널 쪽을 조금 더 넓게)
 
-    # [LEFT] Signal
-    with col1:
-        if latest_data:
-            date_str = convert_utc_to_kst(latest_data['created_at'])
-            
-            # 1. 데이터 로드 (Fin & Tech)
-            f_up = latest_data.get('fin_prob_up', 0.0)
-            f_down = latest_data.get('fin_prob_down', 0.0)
-            f_neutral = latest_data.get('fin_prob_neutral', 0.0)
-            
-            t_up = latest_data.get('tech_prob_up', 0.0)
-            t_down = latest_data.get('tech_prob_down', 0.0)
-            t_neutral = latest_data.get('tech_prob_neutral', 0.0)
-
+    if latest_data:
+        date_str = convert_utc_to_kst(latest_data['created_at'])
+        
+        # 데이터 추출
+        f_up = latest_data.get('fin_prob_up', 0.0)
+        f_down = latest_data.get('fin_prob_down', 0.0)
+        f_neutral = latest_data.get('fin_prob_neutral', 0.0)
+        t_up = latest_data.get('tech_prob_up', 0.0)
+        t_down = latest_data.get('tech_prob_down', 0.0)
+        t_neutral = latest_data.get('tech_prob_neutral', 0.0)
+        
+        # =========================================================
+        # [상단 왼쪽] Final Ensemble Probabilities & Signal
+        # =========================================================
+        with col_signal:
             st.markdown(f"**Analysis Time:** {date_str}")
-            
-            # [수정] 섹션 헤더 및 설명 추가 (뉴스 영향력 명시)
             st.markdown("##### 🎯 Final Ensemble Probabilities")
             st.caption("The delta values (Δ) indicate how **News Sentiment** adjusted the Technical Baseline.")
             
             m1, m2, m3 = st.columns(3)
+            # (Tooltip 스타일이 CSS로 적용됨)
+            m1.metric("Bullish", f"{f_up*100:.1f}%", delta=f"{f_up-t_up:.1%}",
+                help=f"🤖 Tech Model: {t_up*100:.1f}%\n📰 News Impact: {f_up-t_up:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_up*100:.1f}%")
+            m2.metric("Bearish", f"{f_down*100:.1f}%", delta=f"{f_down-t_down:.1%}", delta_color="inverse",
+                help=f"🤖 Tech Model: {t_down*100:.1f}%\n📰 News Impact: {f_down-t_down:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_down*100:.1f}%")
+            m3.metric("Neutral", f"{f_neutral*100:.1f}%", delta=f"{f_neutral-t_neutral:.1%}", delta_color="off",
+                help=f"🤖 Tech Model: {t_neutral*100:.1f}%\n📰 News Impact: {f_neutral-t_neutral:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_neutral*100:.1f}%")
             
-            # 2. 메트릭 표시 (Tooltip 활용)
-            # Bullish
-            m1.metric(
-                "Bullish", 
-                f"{f_up*100:.1f}%", 
-                delta=f"{f_up-t_up:.1%}",
-                help=f"🤖 Tech Model: {t_up*100:.1f}%\n📰 News Impact: {f_up-t_up:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_up*100:.1f}%"
-            )
-            
-            # Bearish (Inverse delta color: 상승하면 빨간색)
-            m2.metric(
-                "Bearish", 
-                f"{f_down*100:.1f}%", 
-                delta=f"{f_down-t_down:.1%}", 
-                delta_color="inverse",
-                help=f"🤖 Tech Model: {t_down*100:.1f}%\n📰 News Impact: {f_down-t_down:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_down*100:.1f}%"
-            )
-            
-            # Neutral
-            m3.metric(
-                "Neutral", 
-                f"{f_neutral*100:.1f}%", 
-                delta=f"{f_neutral-t_neutral:.1%}", 
-                delta_color="off",
-                help=f"🤖 Tech Model: {t_neutral*100:.1f}%\n📰 News Impact: {f_neutral-t_neutral:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_neutral*100:.1f}%"
-            )
-            
-            # 3. 기술적 모델 원본 데이터 보기 (접기/펴기)
             with st.expander("📊 View Technical Model Baseline", expanded=False):
                 st.caption("Raw probabilities from TMFG-LSTM model (Before News adjustment)")
                 t1, t2, t3 = st.columns(3)
@@ -368,18 +359,12 @@ elif st.session_state["current_page"] == "Dashboard":
                 t2.markdown(f"**Tech Bear:** `{t_down*100:.1f}%`")
                 t3.markdown(f"**Tech Neut:** `{t_neutral*100:.1f}%`")
 
-            # 4. 최종 결정 (Primary Signal)
             decision = latest_data.get('action', "HOLD")
             d_color = "#CCCCCC"
             if decision == "BUY": d_color = "#00E396"
             elif decision == "SELL": d_color = "#FF4560"
             
-            st.markdown(f"""
-            <div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #121926; text-align: center;'>
-                <span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Primary Signal (Weighted)</span><br>
-                <span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #121926; text-align: center;'><span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Primary Signal (Weighted)</span><br><span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span></div>""", unsafe_allow_html=True)
             
             prev_signal = prev_data['action'] if prev_data else None
             strategy_text = get_strategy_text(market_option, prev_signal, decision)
@@ -391,89 +376,101 @@ elif st.session_state["current_page"] == "Dashboard":
                 st.markdown(f"""<div style='font-size: 0.9rem; color: #CCCCCC; margin-top: 10px; border-top: 2px solid #555; padding-top: 10px; font-weight: 500;'>* 📈 <b>Long Target:</b> {LEV_LONG}<br>* 📉 <b>Short Target:</b> {LEV_SHORT}</div>""", unsafe_allow_html=True)
                 st.write("")
             
-            if st.button("Refresh Analysis"): st.rerun()
-        else:
-            st.warning("Data syncing...")
+            if st.button("Refresh Analysis", use_container_width=True): st.rerun()
 
-    # [RIGHT] Chart & Forecast
-    with col2:
-        st.markdown(f"**Price Action & Forecast ({IDX})**")
-        try:
-            with st.spinner("Fetching market data..."):
-                chart_df = yf.download(IDX, period="6mo", progress=False, auto_adjust=True)
-            
-            if not chart_df.empty:
-                if isinstance(chart_df.columns, pd.MultiIndex):
-                    try: chart_df = chart_df.xs(IDX, axis=1, level=0)
-                    except: chart_df.columns = chart_df.columns.get_level_values(0)
+        # =========================================================
+        # [상단 오른쪽] Global Sentiment & Macro Insights (위치 이동됨)
+        # =========================================================
+        with col_news:
+            st.markdown("##### 📰 Global Sentiment & Macro Insights")
+            st.caption("AI-driven analysis of latest market news and economic data.")
 
-                if 'Close' in chart_df.columns:
-                    chart_data = chart_df['Close'].dropna()
-                    current_price = chart_data.iloc[-1]
-                    
-                    if latest_data:
-                        stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
-                        
-                        f_up = latest_data.get('fin_prob_up', 0.0)
-                        f_down = latest_data.get('fin_prob_down', 0.0)
-                        f_neutral = latest_data.get('fin_prob_neutral', 0.0)
-                        
-                        # [가중평균 수익률 계산]
-                        daily_expected_return = (f_up * stats['bull']) + \
-                                                (f_down * stats['bear']) + \
-                                                (f_neutral * stats['neut'])
-                        
-                        future_price_5d = current_price * ((1 + daily_expected_return) ** 5)
-                        total_return = (future_price_5d / current_price - 1) * 100
-                    else:
-                        future_price_5d = current_price
-                        total_return = 0
-
-                    daily_ret = 0
-                    if len(chart_data) >= 2:
-                        daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
-
-                    pc1, pc2 = st.columns(2)
-                    with pc1: st.metric("Current Price", f"{current_price:,.2f}", f"{daily_ret:+.2f}% (Daily)")
-                    with pc2: st.metric("AI Target (5 Days Later)", f"{future_price_5d:,.2f}", f"{total_return:+.2f}% (5d Exp.)")
-
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=3))) 
-
-                    if latest_data:
-                        trend_color = '#FFFFFF' 
-                        if total_return > 0: trend_color = '#00E396'
-                        elif total_return < 0: trend_color = '#FF4560'
-
-                        last_date = chart_data.index[-1]
-                        future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
-                        
-                        future_prices = [current_price]
-                        for i in range(1, 6):
-                             future_prices.append(current_price * ((1 + daily_expected_return) ** i))
-
-                        fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
-
-                    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), height=350, showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
-        except Exception as e: st.error(f"Chart Error: {e}")
-            
-    # [BOTTOM] News Section
-    st.markdown("---")
-    st.markdown("**Global Sentiment & Macro Insights**")
-    if latest_data:
-        nc1, nc2 = st.columns([1, 3])
-        with nc1:
             sent_score = latest_data.get('news_sentiment', 0.0)
             sent_label = "Neutral"
             if sent_score > 0.3: sent_label = "Positive"
             elif sent_score < -0.3: sent_label = "Negative"
-
-            st.metric("Sentiment Score", f"{sent_score * 100:.1f}%", sent_label)
             
             rel_score = latest_data.get('news_reliability', 0.0)
-            st.caption(f"News Reliability: {rel_score * 100:.1f}%")
+
+            nc1, nc2 = st.columns(2)
+            with nc1: st.metric("Sentiment Score", f"{sent_score * 100:.1f}%", sent_label)
+            with nc2: st.metric("News Reliability", f"{rel_score * 100:.1f}%", help="Based on source credibility and consensus.")
             
-        with nc2:
             summary = latest_data.get('news_summary', "No summary available.")
-            st.info(f"📰 **Market Summary (English):**\n\n{summary}")
+            # [수정] 뉴스 요약창 높이 고정 및 스크롤 적용
+            st.markdown(f"""
+            <div style="background-color: #121926; border: 1px solid #444444; border-radius: 8px; padding: 15px; height: 300px; overflow-y: auto;">
+                <p style="color: #E0E0E0; font-size: 0.95rem; line-height: 1.5;">{summary}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    else:
+        st.warning("Data syncing... Please wait.")
+
+    # =========================================================
+    # [하단] Price Action & Forecast (넓게 배치)
+    # =========================================================
+    st.divider()
+    st.markdown(f"##### 📈 Price Action & Forecast ({IDX})")
+    
+    try:
+        with st.spinner("Fetching market data..."):
+            chart_df = yf.download(IDX, period="6mo", progress=False, auto_adjust=True)
+        
+        if not chart_df.empty:
+            if isinstance(chart_df.columns, pd.MultiIndex):
+                try: chart_df = chart_df.xs(IDX, axis=1, level=0)
+                except: chart_df.columns = chart_df.columns.get_level_values(0)
+
+            if 'Close' in chart_df.columns:
+                chart_data = chart_df['Close'].dropna()
+                current_price = chart_data.iloc[-1]
+                
+                if latest_data:
+                    stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
+                    f_up = latest_data.get('fin_prob_up', 0.0)
+                    f_down = latest_data.get('fin_prob_down', 0.0)
+                    f_neutral = latest_data.get('fin_prob_neutral', 0.0)
+                    
+                    daily_expected_return = (f_up * stats['bull']) + \
+                                            (f_down * stats['bear']) + \
+                                            (f_neutral * stats['neut'])
+                    
+                    future_price_5d = current_price * ((1 + daily_expected_return) ** 5)
+                    total_return = (future_price_5d / current_price - 1) * 100
+                else:
+                    future_price_5d = current_price
+                    total_return = 0
+
+                daily_ret = 0
+                if len(chart_data) >= 2:
+                    daily_ret = (chart_data.iloc[-1] / chart_data.iloc[-2] - 1) * 100
+
+                # [수정] 차트 위 메트릭을 4분할로 넓게 표시
+                pc1, pc2, pc3, pc4 = st.columns(4)
+                with pc1: st.metric("Current Price", f"{current_price:,.2f}")
+                with pc2: st.metric("Daily Return", f"{daily_ret:+.2f}%")
+                with pc3: st.metric("AI Target (5d)", f"{future_price_5d:,.2f}")
+                with pc4: st.metric("Exp. Return (5d)", f"{total_return:+.2f}%")
+
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=chart_data.index, y=chart_data, mode='lines', name='Price', line=dict(color='#2563EB', width=3))) 
+
+                if latest_data:
+                    trend_color = '#FFFFFF' 
+                    if total_return > 0: trend_color = '#00E396'
+                    elif total_return < 0: trend_color = '#FF4560'
+
+                    last_date = chart_data.index[-1]
+                    future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
+                    
+                    future_prices = [current_price]
+                    for i in range(1, 6):
+                            future_prices.append(current_price * ((1 + daily_expected_return) ** i))
+
+                    fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
+
+                # [수정] 차트 높이 증가
+                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=20, b=0), xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), height=500, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+    except Exception as e: st.error(f"Chart Error: {e}")
