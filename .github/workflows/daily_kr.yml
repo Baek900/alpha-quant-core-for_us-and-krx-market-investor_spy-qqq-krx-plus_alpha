@@ -25,12 +25,18 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        # PyTorch CPU 버전 (서버 용량 절약)
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         
+        # requirements.txt가 있으면 설치
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
-        # [최신화] langchain-tavily 추가 및 필수 패키지 명시
-        pip install langchain-core langchain-community langchain-google-genai langchain-tavily supabase pandas
+        # [최신 문서 반영]
+        # langchain-tavily(X) -> langchain-community(O)
+        # 1. langchain-community: Tavily 도구가 여기 들어있음
+        # 2. langchain-google-genai: Gemini 모델 사용
+        # 3. tavily-python: Tavily 기본 SDK
+        pip install langchain-community langchain-core langchain-google-genai tavily-python supabase pandas
 
     - name: Run Analysis Script (Korea)
       env:
