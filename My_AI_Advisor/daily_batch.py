@@ -30,7 +30,7 @@ MODEL_ACCURACY = {
     "KOSPI (Korea)": 0.42
 }
 
-def save_to_supabase(market, probs_list, news_data, final_prob, w_tech, w_news, action):
+def save_to_supabase(market, tech_probs, fin_probs, news_data, w_tech, w_news, action):
     if not supabase: return False
     try:
         # News Score (Display용 0~100)
@@ -38,19 +38,24 @@ def save_to_supabase(market, probs_list, news_data, final_prob, w_tech, w_news, 
         
         data = {
             "market_name": market,
-            # [수정] 모든 확률 값을 소수점 4자리로 명시적 반올림 처리
-            "prob_down": round(float(probs_list[0]), 4),    # 최종 하락 확률
-            "prob_neutral": round(float(probs_list[1]), 4), # 최종 횡보 확률
-            "tech_prob": round(float(probs_list[2]), 4),    # 최종 상승 확률
             
+            # [신규] 기술적 모델 확률 (Raw)
+            "tech_prob_down": round(float(tech_probs[0]), 4),
+            "tech_prob_neutral": round(float(tech_probs[1]), 4),
+            "tech_prob_up": round(float(tech_probs[2]), 4),
+            
+            # [신규] 앙상블 최종 확률 (Final)
+            "fin_prob_down": round(float(fin_probs[0]), 4),
+            "fin_prob_neutral": round(float(fin_probs[1]), 4),
+            "fin_prob_up": round(float(fin_probs[2]), 4),
+            
+            # 뉴스 데이터
             "news_sentiment": round(float(news_data['sentiment']), 4),
             "news_reliability": round(float(news_data['reliability']), 4),
             "news_summary": news_data['summary'],
             "news_score": news_score_display,
             
-            "final_prob": round(float(final_prob), 4),
-            
-            # [수정] 가중치도 정밀하게 기록하기 위해 4자리로 변경 (기존 2자리)
+            # 가중치
             "w_tech": round(float(w_tech), 4),
             "w_news": round(float(w_news), 4),
             
@@ -58,7 +63,7 @@ def save_to_supabase(market, probs_list, news_data, final_prob, w_tech, w_news, 
         }
         
         supabase.table("prediction_logs").insert(data).execute()
-        print(f"✅ [{market}] 저장 완료 | Action: {action} (Up: {data['tech_prob']:.4f}, Down: {data['prob_down']:.4f})")
+        print(f"✅ [{market}] 저장 완료 | Action: {action} (Fin Up: {data['fin_prob_up']})")
         return True
     except Exception as e:
         print(f"❌ DB 저장 실패: {e}")
@@ -116,7 +121,7 @@ def run_analysis_batch(market_option):
     
     # 4. [핵심] 앙상블 가중치 및 확률 계산
     
-    # (1) 가중치 결정 (신뢰도 기반)
+    # (1) 가중치 결정
     acc_model = MODEL_ACCURACY.get(market_option, 0.5)
     total_weight = acc_model + reliability
     if total_weight == 0: total_weight = 1
@@ -134,7 +139,7 @@ def run_analysis_batch(market_option):
     final_neutral = (t_neutral * w_tech) + (n_neutral * w_news)
     final_up = (t_up * w_tech) + (n_up * w_news)
     
-    # 합이 1이 되도록 정규화 (소수점 오차 보정)
+    # 합이 1이 되도록 정규화
     total_prob = final_down + final_neutral + final_up
     final_down /= total_prob
     final_neutral /= total_prob
@@ -150,19 +155,18 @@ def run_analysis_batch(market_option):
     best_action = max(prob_map, key=prob_map.get)
     max_prob = prob_map[best_action]
     
-    # [조건] 셋 중 하나라도 0.45를 넘지 못하면 판단 보류(HOLD)
     if max_prob < 0.45:
         final_action = "HOLD"
         print(f"⚖️ 판단 보류: 최대 확률({max_prob:.4f})이 임계값(0.45) 미달 -> HOLD 강제")
     else:
         final_action = best_action
         
-    # 6. 저장
+    # 6. 저장 (변경된 스키마에 맞춰 인자 전달)
     save_to_supabase(
         market_option, 
-        [final_down, final_neutral, final_up], # DB 필드 순서 매핑 주의
+        [t_down, t_neutral, t_up],        # 기술적 확률
+        [final_down, final_neutral, final_up], # 최종 확률
         news_data, 
-        final_up, # 메인 display용은 상승 확률
         w_tech, 
         w_news,
         final_action
@@ -181,7 +185,6 @@ if __name__ == "__main__":
     
     for i, m in enumerate(markets):
         run_analysis_batch(m)
-        
         if i < len(markets) - 1:
             print("⏳ API 요청 제한 방지를 위해 20초 대기 중...")
             time.sleep(20)
