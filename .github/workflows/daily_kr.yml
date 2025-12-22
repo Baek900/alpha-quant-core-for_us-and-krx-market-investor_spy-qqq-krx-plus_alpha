@@ -2,7 +2,7 @@ name: Daily Analysis (Korea)
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 한국 시간 아침 08:00
+    - cron: '0 23 * * *'  # UTC 23:00 = 한국 시간 아침 08:00 (장 시작 1시간 전)
   workflow_dispatch:
 
 jobs:
@@ -17,28 +17,34 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # [수정 1] Python 버전을 3.10으로 업그레이드
+    # [수정 1] Python 3.10 설정
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
-    # [참고] CPU 버전 PyTorch 설치 (그대로 유지)
+    # [참고] CPU 버전 PyTorch 설치 (서버 부하 감소용)
     - name: Install PyTorch (CPU version)
       run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-    # [통합] 의존성 설치를 한 번에 정리
+    # [수정 2] 의존성 설치 강화 (에러 해결 핵심)
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install supabase langchain-google-genai langchain-community tavily-python
+        
+        # requirements.txt가 있으면 설치, 없으면 에러 없이 넘어가도록 설정
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+        # [중요] requirements.txt 누락이나 버전 충돌 방지를 위해 필수 패키지 강제 설치
+        # pandas, langchain 등이 없어서 생기는 에러를 원천 차단합니다.
+        pip install langchain langchain-community langchain-google-genai tavily-python supabase pandas
 
-    # [수정 2] 실행 단계에 API Key 환경변수 모두 포함
+    # [수정 3] 실행 스크립트 (Korea 모드)
+    # API Key 환경변수를 모두 포함시켜야 뉴스 분석 등이 정상 작동합니다.
     - name: Run Analysis Script (Korea)
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}  # 뉴스 분석용 필수
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}  # 뉴스 분석용 필수
+        TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: python daily_batch.py kr
