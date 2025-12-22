@@ -123,11 +123,15 @@ def run_analysis_batch(market_option):
     
     # (1) 가중치 결정
     acc_model = MODEL_ACCURACY.get(market_option, 0.5)
-    total_weight = acc_model + reliability
+    # [수정] 뉴스 신뢰도에 0.5(또는 0.7)를 곱해 반영 비율을 강제로 낮춤 (Conservative Weighting)
+    # 아무리 신뢰도가 높아도 기술적 모델(acc_model)을 완전히 압도하지 못하게 함
+    damped_reliability = news_data['reliability'] * 0.6  # 60%만 인정
+    
+    total_weight = acc_model + damped_reliability
     if total_weight == 0: total_weight = 1
     
     w_tech = acc_model / total_weight
-    w_news = reliability / total_weight
+    w_news = damped_reliability / total_weight
     
     # (2) 뉴스 감정을 확률 벡터로 변환
     n_up = max(0.0, sentiment)
