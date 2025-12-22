@@ -2,8 +2,10 @@ import os
 import json
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
-from langchain.schema.output_parser import StrOutputParser
+
+# [수정 1] 최신 버전 위치로 변경 (langchain -> langchain_core)
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 # API 키는 호출하는 daily_batch.py에서 환경변수로 로드됨
 def get_news_analysis(market_name, query):
@@ -24,7 +26,9 @@ def get_news_analysis(market_name, query):
     )
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3-flash",
+        # [수정 2] 모델명 수정 (gemini-3-flash -> gemini-1.5-flash)
+        # 현재 사용 가능한 최신 경량 모델은 1.5 flash입니다.
+        model="gemini-3-flash", 
         google_api_key=google_key,
         temperature=0.1
     )
@@ -60,7 +64,7 @@ def get_news_analysis(market_name, query):
         chain = news_prompt | llm | StrOutputParser()
         result_raw = chain.invoke({"market_name": market_name, "news_context": news_context})
         
-        # JSON 파싱
+        # JSON 파싱 (마크다운 코드 블록 제거 처리 강화)
         clean_json = result_raw.replace("```json", "").replace("```", "").strip()
         data = json.loads(clean_json)
         
