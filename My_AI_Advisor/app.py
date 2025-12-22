@@ -294,16 +294,29 @@ elif st.session_state["current_page"] == "Dashboard":
             f_up = latest_data.get('fin_prob_up', 0.0)
             f_neutral = latest_data.get('fin_prob_neutral', 0.0)
             f_down = latest_data.get('fin_prob_down', 0.0)
+
+            # 2. Tech Prob (순수 기술적 모델)
+            t_up = latest_data.get('tech_prob_up', 0.0)
+            t_down = latest_data.get('tech_prob_down', 0.0)
+            t_neutral = latest_data.get('tech_prob_neutral', 0.0)
             
-            w_tech = latest_data.get('w_tech', 0.7)
-            w_news = latest_data.get('w_news', 0.3)
 
             st.markdown(f"**Analysis Time:** {date_str}")
             
+       
+            st.markdown("##### 🎯 Final Ensemble Probabilities")
             m1, m2, m3 = st.columns(3)
-            m1.metric("Bullish", f"{f_up*100:.1f}%")
-            m2.metric("Bearish", f"{f_down*100:.1f}%") 
-            m3.metric("Neutral", f"{f_neutral*100:.1f}%")
+            m1.metric("Bullish", f"{f_up*100:.1f}%", delta=f"{f_up-t_up:.1%}") # Tech 대비 변화량 표시
+            m2.metric("Bearish", f"{f_down*100:.1f}%", delta=f"{f_down-t_down:.1%}", delta_color="inverse")
+            m3.metric("Neutral", f"{f_neutral*100:.1f}%", delta=f"{f_neutral-t_neutral:.1%}", delta_color="off")
+            
+            # [Sub Display] 순수 기술적 모델 수치 (Expander로 깔끔하게 정리)
+            with st.expander("📊 View Technical Model Baseline", expanded=False):
+                st.caption("Raw probabilities from TMFG-LSTM model (Before News adjustment)")
+                t1, t2, t3 = st.columns(3)
+                t1.markdown(f"**Tech Bull:** `{t_up*100:.1f}%`")
+                t2.markdown(f"**Tech Bear:** `{t_down*100:.1f}%`")
+                t3.markdown(f"**Tech Neut:** `{t_neutral*100:.1f}%`")
             
             decision = latest_data.get('action', "HOLD")
             d_color = "#CCCCCC"
