@@ -38,18 +38,22 @@ def save_to_supabase(market, probs_list, news_data, final_prob, w_tech, w_news, 
         
         data = {
             "market_name": market,
-            "prob_down": float(probs_list[0]),    # 최종 하락 확률
-            "prob_neutral": float(probs_list[1]), # 최종 횡보 확률
-            "tech_prob": float(probs_list[2]),    # 최종 상승 확률 (App 호환성 위해 이름 유지)
+            # [수정] 모든 확률 값을 소수점 4자리로 명시적 반올림 처리
+            "prob_down": round(float(probs_list[0]), 4),    # 최종 하락 확률
+            "prob_neutral": round(float(probs_list[1]), 4), # 최종 횡보 확률
+            "tech_prob": round(float(probs_list[2]), 4),    # 최종 상승 확률
             
-            "news_sentiment": float(news_data['sentiment']),
-            "news_reliability": float(news_data['reliability']),
+            "news_sentiment": round(float(news_data['sentiment']), 4),
+            "news_reliability": round(float(news_data['reliability']), 4),
             "news_summary": news_data['summary'],
             "news_score": news_score_display,
             
-            "final_prob": round(float(final_prob), 4), # 상승 확률 기준 (참고용)
-            "w_tech": round(float(w_tech), 2),
-            "w_news": round(float(w_news), 2),
+            "final_prob": round(float(final_prob), 4),
+            
+            # [수정] 가중치도 정밀하게 기록하기 위해 4자리로 변경 (기존 2자리)
+            "w_tech": round(float(w_tech), 4),
+            "w_news": round(float(w_news), 4),
+            
             "action": action
         }
         
@@ -121,10 +125,6 @@ def run_analysis_batch(market_option):
     w_news = reliability / total_weight
     
     # (2) 뉴스 감정을 확률 벡터로 변환
-    # 감정이 양수면 Up확률 증가, 음수면 Down확률 증가, 0에 가까우면 Neutral 증가
-    # 수식: S > 0 -> Up=S, Neutral=1-S
-    #       S < 0 -> Down=|S|, Neutral=1-|S|
-    
     n_up = max(0.0, sentiment)
     n_down = max(0.0, -sentiment)
     n_neutral = 1.0 - abs(sentiment)
@@ -141,7 +141,6 @@ def run_analysis_batch(market_option):
     final_up /= total_prob
     
     # 5. 의사 결정 (Threshold 0.45 Rule)
-    # 가장 높은 확률을 찾음
     prob_map = {
         "SELL": final_down,
         "HOLD": final_neutral,
