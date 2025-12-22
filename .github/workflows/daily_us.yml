@@ -35,3 +35,21 @@ jobs:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       run: python daily_batch.py us
+
+      # ... (상단 생략) ...
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # [추가] 뉴스 분석용 라이브러리 설치
+        pip install supabase langchain-google-genai langchain-community tavily-python
+
+    - name: Run Analysis Script
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        # [추가] 뉴스 분석용 API 키
+        TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      run: python daily_batch.py kr  # (US 파일은 'us')
