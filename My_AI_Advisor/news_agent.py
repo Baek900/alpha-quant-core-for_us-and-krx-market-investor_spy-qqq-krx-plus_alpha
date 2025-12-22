@@ -24,7 +24,7 @@ def get_news_analysis(market_name, query):
     )
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3-pro-preview",
+        model="gemini-3-flash",
         google_api_key=google_key,
         temperature=0.1
     )
