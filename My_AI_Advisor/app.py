@@ -32,7 +32,7 @@ MARKET_STATS = {
 }
 
 # ==============================================================================
-# 1. Configuration & Custom CSS (Fixed Login Popup Visibility)
+# 1. Configuration & Custom CSS (Maximum Visibility Theme)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
 
@@ -101,17 +101,11 @@ st.markdown("""
             font-weight: 600;
         }
 
-        /* 8. Form Elements (Input, Select) */
+        /* 8. Form Elements */
         div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
             background-color: #121926 !important;
             color: white !important;
             border: 1px solid #555555 !important;
-        }
-        div[data-baseweb="base-input"] {
-            background-color: #121926 !important;
-        }
-        input {
-            color: white !important;
         }
         ul[data-testid="stSelectboxVirtualDropdown"] {
             background-color: #121926 !important;
@@ -135,30 +129,21 @@ st.markdown("""
             border: 1px solid #444444;
         }
 
-        /* ------------------------------------------------------- */
-        /* [NEW] 11. Login Dialog / Modal Styling Fix */
-        /* ------------------------------------------------------- */
+        /* 11. Login Dialog Fix */
         div[role="dialog"] {
-            background-color: #121926 !important; /* Dark background for modal */
+            background-color: #121926 !important;
             border: 2px solid #6B7280 !important;
             color: #FFFFFF !important;
         }
-        
-        /* Modal Header & Text */
         div[role="dialog"] h2, div[role="dialog"] p, div[role="dialog"] label {
             color: #FFFFFF !important;
         }
-        
-        /* Close Button (X) */
         div[role="dialog"] button[aria-label="Close"] {
             color: #FFFFFF !important;
         }
-
-        /* Input Label within Dialog */
         div[data-testid="stMarkdownContainer"] p {
              color: #E0E0E0 !important;
         }
-        
     </style>
 """, unsafe_allow_html=True)
 
@@ -252,10 +237,7 @@ if st.session_state["current_page"] == "Home":
         if st.button("🔑 Log In", use_container_width=True):
             login_dialog()
 
-    # Subtitle: Explicit Bright White
     st.markdown("<h3 style='color: #FFFFFF; font-weight: 500; margin-top: 10px;'>Advanced Financial Forecasting System powered by TMFG-LSTM</h3>", unsafe_allow_html=True)
-    
-    # Description: Light Grey (#E0E0E0) to ensure readability
     st.markdown("""
     <p style='color: #E0E0E0; font-size: 1.1rem;'>
     This platform leverages deep learning architectures to analyze global market trends, macroeconomics, and sector rotation, providing institutional-grade insights.
@@ -264,7 +246,6 @@ if st.session_state["current_page"] == "Home":
     
     st.divider()
 
-    # Section 1: Benchmark Performance
     st.markdown("#### Performance Benchmark (YTD)")
     st.caption("Strategy vs. S&P 500 (SPY) | Based on 12-month backtesting data")
     
@@ -311,29 +292,23 @@ if st.session_state["current_page"] == "Home":
 
     st.divider()
     
-    # Section 2: Model Reliability
     st.markdown("#### Model Reliability Metrics")
     st.caption("Validation on unseen test data (2025) | SPY Model")
 
     col_m1, col_m2, col_m3 = st.columns(3)
-    
     with col_m1:
         st.metric(label="Accuracy", value="52.6%", delta="vs Random (33%)")
         st.caption("Consistent edge over random chance.")
-        
     with col_m2:
         st.metric(label="Precision (Buy)", value="64.0%", delta="High Confidence")
         st.caption("Minimizes false positives in uptrends.")
-        
     with col_m3:
         st.metric(label="Recall (Uptrend)", value="55.0%", delta="Opportunity Capture")
         st.caption("Captures the majority of market rallies.")
 
     st.divider()
 
-    # Section 3: Architecture
     st.markdown("#### System Architecture")
-    
     ac1, ac2 = st.columns(2)
     with ac1:
         st.markdown("**1. TMFG Network**")
@@ -371,7 +346,6 @@ elif st.session_state["current_page"] == "Dashboard":
     with top_col2:
          st.markdown(f"<div style='text-align: right; color: #FFFFFF; font-weight: bold;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
 
-    # Configuration Map
     if market_option == "NASDAQ (QQQ)":
         IDX_TICKER, LEV_LONG, LEV_SHORT = "QQQ", "QLD (2x) / TQQQ (3x)", "QID (2x) / SQQQ (3x)"
     elif market_option == "S&P 500 (SPY)":
@@ -379,7 +353,6 @@ elif st.session_state["current_page"] == "Dashboard":
     else: 
         IDX_TICKER, LEV_LONG, LEV_SHORT = "^KS11", "KODEX Leverage", "KODEX 200 Inverse 2X"
         
-    # 1. Load Data
     latest_data, prev_data = load_latest_analysis(market_option)
 
     col1, col2 = st.columns([1, 1.5])
@@ -391,25 +364,36 @@ elif st.session_state["current_page"] == "Dashboard":
         if latest_data:
             date_str = convert_utc_to_kst(latest_data['created_at'])
             
-            up_prob = latest_data['final_prob']
-            down_prob = latest_data.get('prob_down', (1.0 - up_prob) * 0.5)
-            hold_prob = latest_data.get('prob_neutral', (1.0 - up_prob) * 0.5)
+            # [수정] DB에서 실제 하락/횡보 확률을 가져옴
+            # 만약 DB에 값이 없으면(0이면) 기존 로직(Fallback) 사용
+            up_prob = latest_data['tech_prob'] # tech_prob는 'Up' 확률
+            
+            raw_down = latest_data.get('prob_down', 0.0)
+            raw_neutral = latest_data.get('prob_neutral', 0.0)
+            
+            if raw_down == 0.0 and raw_neutral == 0.0:
+                # 구버전 데이터 호환용
+                down_prob = (1.0 - up_prob) * 0.5
+                hold_prob = (1.0 - up_prob) * 0.5
+            else:
+                down_prob = raw_down
+                hold_prob = raw_neutral
             
             st.markdown(f"**Analysis Time:** {date_str}")
             
-            # Metrics
             m1, m2, m3 = st.columns(3)
             m1.metric("Bullish", f"{up_prob*100:.1f}%")
             m2.metric("Bearish", f"{down_prob*100:.1f}%") 
             m3.metric("Neutral", f"{hold_prob*100:.1f}%")
             
-            # Primary Signal
+            # Signal은 뉴스 반영된 final_prob 기준
+            final_prob = latest_data['final_prob']
             decision = "HOLD"
             d_color = "#CCCCCC"
-            if up_prob >= 0.45:
+            if final_prob >= 0.45:
                 decision = "BUY"
                 d_color = "#00E396"
-            elif up_prob <= 0.2:
+            elif final_prob <= 0.2:
                 decision = "SELL"
                 d_color = "#FF4560"
             
@@ -425,25 +409,14 @@ elif st.session_state["current_page"] == "Dashboard":
 
             with st.expander("View Strategy Details", expanded=True):
                 st.write("") 
-                
                 st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
                 
                 st.markdown(f"""
                 <div style="
-                    margin-top: 10px;
-                    margin-bottom: 15px;
-                    padding: 15px;
-                    background-color: #000000; 
-                    border: 1px solid #7C3AED; 
-                    border-radius: 4px;
+                    margin-top: 10px; margin-bottom: 15px; padding: 15px;
+                    background-color: #000000; border: 1px solid #7C3AED; border-radius: 4px;
                 ">
-                    <p style="
-                        color: #FFFFFF; 
-                        font-size: 1rem; 
-                        line-height: 1.6; 
-                        margin: 0;
-                        font-weight: 600;
-                    ">
+                    <p style="color: #FFFFFF; font-size: 1rem; line-height: 1.6; margin: 0; font-weight: 600;">
                         {strategy_text}
                     </p>
                 </div>
@@ -484,9 +457,14 @@ elif st.session_state["current_page"] == "Dashboard":
                     if latest_data:
                         stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
                         
-                        p_up = latest_data['final_prob']
-                        p_down = latest_data.get('prob_down', (1.0 - p_up) * 0.5)
-                        p_neutral = latest_data.get('prob_neutral', (1.0 - p_up) * 0.5)
+                        # [중요] 여기도 DB에서 가져온 실제 확률 사용
+                        p_up = latest_data['tech_prob']
+                        p_down = latest_data.get('prob_down', 0.0)
+                        p_neutral = latest_data.get('prob_neutral', 0.0)
+                        
+                        if p_down == 0 and p_neutral == 0:
+                             p_down = (1.0 - p_up) * 0.5
+                             p_neutral = (1.0 - p_up) * 0.5
 
                         daily_expected_move = (p_down * stats['bear']) + \
                                               (p_neutral * stats['neut']) + \
@@ -506,17 +484,9 @@ elif st.session_state["current_page"] == "Dashboard":
 
                     pc1, pc2 = st.columns(2)
                     with pc1:
-                        st.metric(
-                            label="Current Price", 
-                            value=f"{current_price:,.2f}", 
-                            delta=f"{daily_ret:+.2f}% (Daily)"
-                        )
+                        st.metric("Current Price", f"{current_price:,.2f}", f"{daily_ret:+.2f}% (Daily)")
                     with pc2:
-                        st.metric(
-                            label="AI Target (5 Days Later)", 
-                            value=f"{future_price_5d:,.2f}", 
-                            delta=f"{total_return:+.2f}% (5d Exp.)"
-                        )
+                        st.metric("AI Target (5 Days Later)", f"{future_price_5d:,.2f}", f"{total_return:+.2f}% (5d Exp.)")
 
                     # Draw chart
                     fig = go.Figure()
@@ -529,9 +499,7 @@ elif st.session_state["current_page"] == "Dashboard":
 
                         last_date = chart_data.index[-1]
                         future_dates = [last_date] + [last_date + datetime.timedelta(days=i) for i in range(1, 6)]
-                        
                         future_prices = [current_price * ((1 + daily_expected_move) ** i) for i in range(0, 6)]
-                        
                         fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
 
                     fig.update_layout(
