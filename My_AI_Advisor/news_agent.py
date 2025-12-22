@@ -25,7 +25,7 @@ def get_news_analysis(market_name, query):
 
     llm = ChatGoogleGenerativeAI(
         # [중요] 이전 대화에서 확인된 최신 호환 모델
-        model="gemini-3-flash", 
+        model="gemini-1.5-flash", 
         google_api_key=google_key,
         temperature=0.1
     )
