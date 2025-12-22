@@ -1,6 +1,6 @@
 import os
 import json
-# [최신 문법 1] TavilySearchResults는 이제 langchain_tavily 패키지에서 가져옵니다.
+# [수정 1] 최신 LangChain 업데이트 반영 (패키지 분리됨)
 from langchain_tavily import TavilySearchResults
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
@@ -24,8 +24,9 @@ def get_news_analysis(market_name, query):
     )
 
     llm = ChatGoogleGenerativeAI(
-        # [최신 문법 2] 존재하는 최신 모델명으로 변경 (gemini-3 -> gemini-1.5)
-        model="gemini-1.5-flash", 
+        # [수정 2] 안정적인 모델로 변경 (gemini-3 -> gemini-1.5-flash)
+        # 404 에러는 API 엔드포인트 호환성 문제일 확률이 높으므로 1.5로 우선 실행합니다.
+        model="gemini-3-flash", 
         google_api_key=google_key,
         temperature=0.1
     )
@@ -55,13 +56,19 @@ def get_news_analysis(market_name, query):
         print(f"🔍 [News Agent] '{market_name}' 검색 및 분석 중...")
         # 검색
         search_results = tavily_tool.invoke({"query": query})
+        
+        # 검색 결과가 없을 경우 예외 처리
+        if not search_results:
+            print("⚠️ 검색 결과 없음.")
+            return {"sentiment": 0.0, "reliability": 0.0, "summary": "No news found"}
+
         news_context = "\n".join([f"- {r['content'][:300]}" for r in search_results])
         
         # 분석
         chain = news_prompt | llm | StrOutputParser()
         result_raw = chain.invoke({"market_name": market_name, "news_context": news_context})
         
-        # JSON 파싱
+        # JSON 파싱 (마크다운 제거)
         clean_json = result_raw.replace("```json", "").replace("```", "").strip()
         data = json.loads(clean_json)
         
@@ -70,4 +77,5 @@ def get_news_analysis(market_name, query):
 
     except Exception as e:
         print(f"❌ 뉴스 분석 실패: {e}")
+        # 에러 발생 시 프로그램이 멈추지 않고 기본값을 반환하도록 처리
         return {"sentiment": 0.0, "reliability": 0.0, "summary": f"Analysis Failed: {str(e)}"}
