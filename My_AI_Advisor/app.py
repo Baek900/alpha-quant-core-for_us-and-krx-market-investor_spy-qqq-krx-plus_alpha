@@ -229,7 +229,6 @@ if st.session_state["password_correct"]:
 # PAGE: HOME
 # ------------------------------------------------------------------------------
 if st.session_state["current_page"] == "Home":
-    
     col_header, col_login = st.columns([6, 1])
     with col_header:
         st.markdown("<h1 style='font-size: 3rem; margin-bottom: 0;'>TITAN FLOW</h1>", unsafe_allow_html=True)
@@ -246,11 +245,38 @@ if st.session_state["current_page"] == "Home":
     
     st.divider()
 
-    # (Home page chart logic remains the same - omitted for brevity)
     st.markdown("#### Performance Benchmark (YTD)")
-    st.caption("Please log in to see the full benchmark data.")
-    st.divider()
+    st.caption("Strategy vs. S&P 500 (SPY) | Based on 12-month backtesting data")
     
+    # (Home page chart logic omitted for brevity - same as before)
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "backtest_result.csv")
+        df = pd.read_csv(file_path)
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.set_index('Date', inplace=True)
+        initial_capital = df['Strategy'].iloc[0]
+        ai_returns = (df['Strategy'] - initial_capital) / initial_capital
+        market_returns = (df['Benchmark'] - initial_capital) / initial_capital
+        final_ai_ret = ai_returns.iloc[-1] * 100
+        final_bm_ret = market_returns.iloc[-1] * 100
+        alpha = final_ai_ret - final_bm_ret
+
+        fig_bench = go.Figure()
+        fig_bench.add_trace(go.Scatter(x=df.index, y=ai_returns, mode='lines', name='Alpha Strategy', line=dict(color='#00E396', width=3))) 
+        fig_bench.add_trace(go.Scatter(x=df.index, y=market_returns, mode='lines', name='S&P 500', line=dict(color='#AAAAAA', dash='dot', width=2))) 
+        fig_bench.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=30, b=0), xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickformat='.0%'), legend=dict(orientation="h", y=1.1, font=dict(color="white", size=12)), height=350)
+        
+        c1, c2 = st.columns([3, 1])
+        with c1: st.plotly_chart(fig_bench, use_container_width=True)
+        with c2:
+            st.metric(label="Total Return", value=f"{final_ai_ret:+.2f}%", delta=f"{alpha:+.2f}% Alpha")
+            st.metric(label="Benchmark", value=f"{final_bm_ret:+.2f}%")
+            st.caption("Data source: Verified Backtest")
+    except:
+        st.error("Backtest data not found.")
+
+    st.divider()
     st.markdown("#### Model Reliability Metrics")
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1: st.metric("Accuracy", "52.6%", "vs Random (33%)")
@@ -290,34 +316,59 @@ elif st.session_state["current_page"] == "Dashboard":
         if latest_data:
             date_str = convert_utc_to_kst(latest_data['created_at'])
             
-            # [DB 변경 반영] 새로운 컬럼명 사용 (fin_prob_...)
+            # 1. 데이터 로드 (Fin & Tech)
             f_up = latest_data.get('fin_prob_up', 0.0)
-            f_neutral = latest_data.get('fin_prob_neutral', 0.0)
             f_down = latest_data.get('fin_prob_down', 0.0)
-
-            # 2. Tech Prob (순수 기술적 모델)
+            f_neutral = latest_data.get('fin_prob_neutral', 0.0)
+            
             t_up = latest_data.get('tech_prob_up', 0.0)
             t_down = latest_data.get('tech_prob_down', 0.0)
             t_neutral = latest_data.get('tech_prob_neutral', 0.0)
-            
 
             st.markdown(f"**Analysis Time:** {date_str}")
             
-       
+            # [수정] 섹션 헤더 및 설명 추가 (뉴스 영향력 명시)
             st.markdown("##### 🎯 Final Ensemble Probabilities")
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Bullish", f"{f_up*100:.1f}%", delta=f"{f_up-t_up:.1%}") # Tech 대비 변화량 표시
-            m2.metric("Bearish", f"{f_down*100:.1f}%", delta=f"{f_down-t_down:.1%}", delta_color="inverse")
-            m3.metric("Neutral", f"{f_neutral*100:.1f}%", delta=f"{f_neutral-t_neutral:.1%}", delta_color="off")
+            st.caption("The delta values (Δ) indicate how **News Sentiment** adjusted the Technical Baseline.")
             
-            # [Sub Display] 순수 기술적 모델 수치 (Expander로 깔끔하게 정리)
+            m1, m2, m3 = st.columns(3)
+            
+            # 2. 메트릭 표시 (Tooltip 활용)
+            # Bullish
+            m1.metric(
+                "Bullish", 
+                f"{f_up*100:.1f}%", 
+                delta=f"{f_up-t_up:.1%}",
+                help=f"🤖 Tech Model: {t_up*100:.1f}%\n📰 News Impact: {f_up-t_up:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_up*100:.1f}%"
+            )
+            
+            # Bearish (Inverse delta color: 상승하면 빨간색)
+            m2.metric(
+                "Bearish", 
+                f"{f_down*100:.1f}%", 
+                delta=f"{f_down-t_down:.1%}", 
+                delta_color="inverse",
+                help=f"🤖 Tech Model: {t_down*100:.1f}%\n📰 News Impact: {f_down-t_down:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_down*100:.1f}%"
+            )
+            
+            # Neutral
+            m3.metric(
+                "Neutral", 
+                f"{f_neutral*100:.1f}%", 
+                delta=f"{f_neutral-t_neutral:.1%}", 
+                delta_color="off",
+                help=f"🤖 Tech Model: {t_neutral*100:.1f}%\n📰 News Impact: {f_neutral-t_neutral:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_neutral*100:.1f}%"
+            )
+            
+            # 3. 기술적 모델 원본 데이터 보기 (접기/펴기)
             with st.expander("📊 View Technical Model Baseline", expanded=False):
                 st.caption("Raw probabilities from TMFG-LSTM model (Before News adjustment)")
                 t1, t2, t3 = st.columns(3)
                 t1.markdown(f"**Tech Bull:** `{t_up*100:.1f}%`")
                 t2.markdown(f"**Tech Bear:** `{t_down*100:.1f}%`")
                 t3.markdown(f"**Tech Neut:** `{t_neutral*100:.1f}%`")
-            
+
+            # 4. 최종 결정 (Primary Signal)
             decision = latest_data.get('action', "HOLD")
             d_color = "#CCCCCC"
             if decision == "BUY": d_color = "#00E396"
@@ -363,20 +414,17 @@ elif st.session_state["current_page"] == "Dashboard":
                     if latest_data:
                         stats = MARKET_STATS.get(market_option, MARKET_STATS["S&P 500 (SPY)"])
                         
-                        # [핵심 로직 변경] 확률 가중평균 기대수익률 계산
-                        # Expected Daily Return = (P_up * Avg_Bull_Ret) + (P_down * Avg_Bear_Ret) + (P_neutral * Avg_Neut_Ret)
                         f_up = latest_data.get('fin_prob_up', 0.0)
                         f_down = latest_data.get('fin_prob_down', 0.0)
                         f_neutral = latest_data.get('fin_prob_neutral', 0.0)
                         
+                        # [가중평균 수익률 계산]
                         daily_expected_return = (f_up * stats['bull']) + \
                                                 (f_down * stats['bear']) + \
                                                 (f_neutral * stats['neut'])
                         
-                        # 5일치 복리 적용
                         future_price_5d = current_price * ((1 + daily_expected_return) ** 5)
                         total_return = (future_price_5d / current_price - 1) * 100
-                        
                     else:
                         future_price_5d = current_price
                         total_return = 0
