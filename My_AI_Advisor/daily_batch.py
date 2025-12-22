@@ -3,6 +3,7 @@ import sys
 import torch
 import torch.nn.functional as F
 import numpy as np
+import time
 from supabase import create_client, Client
 
 # 모듈 임포트
@@ -142,5 +143,10 @@ if __name__ == "__main__":
     else: markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]
 
     print(f"🔄 Mode: {mode} / Targets: {markets}")
-    for m in markets:
+    
+    for i, m in enumerate(markets):
         run_analysis_batch(m)
+        
+        if i < len(markets) - 1:
+            print("⏳ API 요청 제한 방지를 위해 20초 대기 중...")
+            time.sleep(20)
