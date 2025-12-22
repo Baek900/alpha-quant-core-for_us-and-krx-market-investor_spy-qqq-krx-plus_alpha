@@ -17,39 +17,28 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    # [수정 1] Python 버전을 3.10으로 업그레이드
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'
 
+    # [참고] CPU 버전 PyTorch 설치 (그대로 유지)
     - name: Install PyTorch (CPU version)
       run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-        pip install supabase
-
-    - name: Run Analysis Script (Korea)
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      run: python daily_batch.py kr
-
-      # ... (상단 생략) ...
-    
+    # [통합] 의존성 설치를 한 번에 정리
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        # [추가] 뉴스 분석용 라이브러리 설치
         pip install supabase langchain-google-genai langchain-community tavily-python
 
-    - name: Run Analysis Script
+    # [수정 2] 실행 단계에 API Key 환경변수 모두 포함
+    - name: Run Analysis Script (Korea)
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        # [추가] 뉴스 분석용 API 키
-        TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-      run: python daily_batch.py kr  # (US 파일은 'us')
+        TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}  # 뉴스 분석용 필수
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}  # 뉴스 분석용 필수
+      run: python daily_batch.py kr
