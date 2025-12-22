@@ -35,8 +35,8 @@ def get_news_analysis(market_name, query):
     You are a senior quant analyst. Analyze the provided news for '{market_name}'.
 
     [Output Requirements]
-    1. sentiment: -1.0 (Very Negative) to 1.0 (Very Positive).
-    2. reliability: 0.0 to 1.0 based on source credibility and consensus.
+    1. sentiment: -1.0 (Very Negative) to 1.0 (Very Positive). MUST use 4 decimal places (e.g., 0.1234, -0.4501).
+    2. reliability: 0.0 to 1.0 based on source credibility. MUST use 4 decimal places (e.g., 0.8512).
     3. summary: Summarize key points in English (max 3 sentences).
 
     [News Data]
@@ -45,7 +45,7 @@ def get_news_analysis(market_name, query):
     [Format]
     JSON only:
     {{
-        "sentiment": float,
+        "sentiment": float, 
         "reliability": float,
         "summary": "string"
     }}
@@ -74,6 +74,7 @@ def get_news_analysis(market_name, query):
         data = json.loads(clean_json)
         
         # [추가 요청 반영] 소수점 4째 자리까지 반올림 처리
+        # (AI가 정밀하게 줬더라도, 파이썬 차원에서 한 번 더 확실하게 처리)
         data['sentiment'] = round(float(data.get('sentiment', 0.0)), 4)
         data['reliability'] = round(float(data.get('reliability', 0.0)), 4)
         
