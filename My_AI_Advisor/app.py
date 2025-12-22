@@ -399,6 +399,9 @@ elif st.session_state["current_page"] == "Dashboard":
         st.write("")
         st.write("")
         st.write("") 
+        st.write("") 
+        st.write("") 
+
 
         st.markdown(f"**Price Action & Forecast ({IDX})**")
         try:
