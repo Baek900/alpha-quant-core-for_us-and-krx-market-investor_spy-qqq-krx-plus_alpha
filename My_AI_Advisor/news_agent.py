@@ -30,13 +30,20 @@ def get_news_analysis(market_name, query):
         temperature=0.1
     )
 
-    # 3. 프롬프트
+# 3. 프롬프트 (엄격한 신뢰도 평가 기준 적용)
     news_prompt = PromptTemplate.from_template("""
-    You are a senior quant analyst. Analyze the provided news for '{market_name}'.
+    You are a conservative Chief Risk Officer. Analyze the news for '{market_name}'.
+
+    [Evaluation Rules for Reliability]
+    - Start at 0.50.
+    - Add 0.1~0.2 ONLY IF: Multiple major sources (Bloomberg, Reuters) report the same fact AND it aligns with standard macroeconomic theory (e.g., rate cuts -> market up).
+    - Deduct 0.1~0.2 IF: The news is based on rumors, single analyst opinions, or contradicts current economic data.
+    - MAX Reliability: 0.90 (Requires official central bank statements or earnings reports).
+    - STRICTLY penalize sensationlism.
 
     [Output Requirements]
-    1. sentiment: -1.0 (Very Negative) to 1.0 (Very Positive). MUST use 4 decimal places (e.g., 0.1234, -0.4501).
-    2. reliability: 0.0 to 1.0 based on source credibility. MUST use 4 decimal places (e.g., 0.8512).
+    1. sentiment: -1.0 (Very Negative) to 1.0 (Very Positive). Precision: 4 decimal places.
+    2. reliability: 0.0 to 1.0. Precision: 4 decimal places. Be critical.
     3. summary: Summarize key points in English (max 3 sentences).
 
     [News Data]
@@ -45,7 +52,7 @@ def get_news_analysis(market_name, query):
     [Format]
     JSON only:
     {{
-        "sentiment": float, 
+        "sentiment": float,
         "reliability": float,
         "summary": "string"
     }}
