@@ -32,7 +32,7 @@ MARKET_STATS = {
 }
 
 # ==============================================================================
-# 1. Configuration & Custom CSS (Maximum Visibility Theme with Adjusted Background)
+# 1. Configuration & Custom CSS (Fixed Login Popup Visibility)
 # ==============================================================================
 st.set_page_config(page_title="Global Asset Advisor", layout="wide", page_icon="G")
 
@@ -40,34 +40,32 @@ st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
         
-        /* 1. Base Text Settings - Force Everything Bright */
+        /* 1. Base Text Settings */
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
-            color: #FFFFFF !important; /* Default to Pure White */
+            color: #FFFFFF !important;
         }
         
-        /* Background Color Adjusted: Slightly brighter than black, darker than #0f172a */
         .stApp {
             background-color: #0B121F !important;
         }
 
-        /* 2. Headers (H1, H2, H3...) */
+        /* 2. Headers */
         h1, h2, h3, h4, h5, h6 {
             color: #FFFFFF !important;
             font-weight: 700 !important;
-            letter-spacing: -0.5px;
         }
 
         /* 3. Captions & Small Text */
         div[data-testid="stCaptionContainer"], small, .stCaption {
-            color: #CCCCCC !important; /* Much brighter silver */
+            color: #CCCCCC !important;
             font-size: 0.9rem !important;
-            opacity: 1 !important; /* Remove transparency */
+            opacity: 1 !important;
         }
         
         /* 4. Paragraphs */
         p {
-            color: #E0E0E0 !important; /* Off-white for readability */
+            color: #E0E0E0 !important;
             font-size: 1rem !important;
         }
 
@@ -77,15 +75,15 @@ st.markdown("""
         [data-testid="stSidebar"] {display: none !important;}
         section[data-testid="stSidebar"] {display: none !important;}
 
-        /* 6. Metric Cards - Adjusted for new background */
+        /* 6. Metric Cards */
         div[data-testid="stMetric"] {
-            background-color: #121926 !important; /* Slightly lighter than new background */
-            border: 1px solid #444444 !important; /* Brighter border */
+            background-color: #121926 !important;
+            border: 1px solid #444444 !important;
             padding: 15px;
             border-radius: 8px;
         }
         div[data-testid="stMetricLabel"] {
-            color: #DDDDDD !important; /* Almost white */
+            color: #DDDDDD !important;
             font-weight: 500 !important;
         }
         div[data-testid="stMetricValue"] {
@@ -103,11 +101,17 @@ st.markdown("""
             font-weight: 600;
         }
 
-        /* 8. Form Elements - Adjusted for new background */
+        /* 8. Form Elements (Input, Select) */
         div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
             background-color: #121926 !important;
             color: white !important;
             border: 1px solid #555555 !important;
+        }
+        div[data-baseweb="base-input"] {
+            background-color: #121926 !important;
+        }
+        input {
+            color: white !important;
         }
         ul[data-testid="stSelectboxVirtualDropdown"] {
             background-color: #121926 !important;
@@ -122,14 +126,39 @@ st.markdown("""
             margin: 1.5rem 0;
         }
         
-        /* 10. Expander - Adjusted for new background */
+        /* 10. Expander */
         .streamlit-expanderHeader {
             background-color: #121926 !important;
         }
         div[data-testid="stExpanderDetails"] {
-            background-color: #0B121F !important; /* Match main background */
+            background-color: #0B121F !important;
             border: 1px solid #444444;
         }
+
+        /* ------------------------------------------------------- */
+        /* [NEW] 11. Login Dialog / Modal Styling Fix */
+        /* ------------------------------------------------------- */
+        div[role="dialog"] {
+            background-color: #121926 !important; /* Dark background for modal */
+            border: 2px solid #6B7280 !important;
+            color: #FFFFFF !important;
+        }
+        
+        /* Modal Header & Text */
+        div[role="dialog"] h2, div[role="dialog"] p, div[role="dialog"] label {
+            color: #FFFFFF !important;
+        }
+        
+        /* Close Button (X) */
+        div[role="dialog"] button[aria-label="Close"] {
+            color: #FFFFFF !important;
+        }
+
+        /* Input Label within Dialog */
+        div[data-testid="stMarkdownContainer"] p {
+             color: #E0E0E0 !important;
+        }
+        
     </style>
 """, unsafe_allow_html=True)
 
@@ -237,7 +266,6 @@ if st.session_state["current_page"] == "Home":
 
     # Section 1: Benchmark Performance
     st.markdown("#### Performance Benchmark (YTD)")
-    # Caption: Bright Silver
     st.caption("Strategy vs. S&P 500 (SPY) | Based on 12-month backtesting data")
     
     try:
@@ -319,7 +347,6 @@ if st.session_state["current_page"] == "Home":
 # ------------------------------------------------------------------------------
 elif st.session_state["current_page"] == "Dashboard":
     
-    # [CUSTOM NAVBAR]
     nav_col1, nav_col2 = st.columns([3, 1])
     
     with nav_col1:
@@ -335,7 +362,6 @@ elif st.session_state["current_page"] == "Dashboard":
     
     st.divider()
 
-    # Dashboard Content
     top_col1, top_col2 = st.columns([4, 1])
     
     with top_col1:
@@ -343,7 +369,6 @@ elif st.session_state["current_page"] == "Dashboard":
         st.caption("Live Market Analysis & Signal Generation")
     
     with top_col2:
-         # Status: Brighter Text
          st.markdown(f"<div style='text-align: right; color: #FFFFFF; font-weight: bold;'>Status: <span style='color: #00E396;'>● Live</span></div>", unsafe_allow_html=True)
 
     # Configuration Map
@@ -403,13 +428,12 @@ elif st.session_state["current_page"] == "Dashboard":
                 
                 st.markdown(f"**Signal Change:** `{prev_signal if prev_signal else 'INIT'}` ➜ **`{decision}`**")
                 
-                # High Contrast Strategy Text
                 st.markdown(f"""
                 <div style="
                     margin-top: 10px;
                     margin-bottom: 15px;
                     padding: 15px;
-                    background-color: #121926; 
+                    background-color: #000000; 
                     border: 1px solid #7C3AED; 
                     border-radius: 4px;
                 ">
@@ -425,7 +449,6 @@ elif st.session_state["current_page"] == "Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # High Contrast Leverage Info
                 st.markdown(f"""
                 <div style='font-size: 0.9rem; color: #CCCCCC; margin-top: 10px; border-top: 2px solid #555; padding-top: 10px; font-weight: 500;'>
                 * 📈 <b>Long Target:</b> {LEV_LONG}<br>
