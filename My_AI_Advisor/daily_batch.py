@@ -1,10 +1,10 @@
+
 import os
-import json
-# [수정 1] 최신 LangChain 업데이트 반영 (패키지 분리됨)
-from langchain_tavily import TavilySearchResults
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+import time
+import sys
+
+
+from news_agent import get_news_analysis  # 이것만 있으면 됩니다.
 
 def get_news_analysis(market_name, query):
     # 1. API 키 확인
