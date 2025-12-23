@@ -110,12 +110,20 @@ st.markdown("""
             margin: 1.5rem 0;
         }
         
+        /* [수정 1] Expander 배경색 강제 지정 (다크 모드) */
         .streamlit-expanderHeader {
             background-color: #121926 !important;
+            color: #FFFFFF !important;
         }
         div[data-testid="stExpanderDetails"] {
             background-color: #0B121F !important;
             border: 1px solid #444444;
+            color: #E0E0E0 !important;
+        }
+        /* Expander 내부의 p 태그나 span 태그 색상 강제 */
+        div[data-testid="stExpanderDetails"] p, 
+        div[data-testid="stExpanderDetails"] span {
+            color: #E0E0E0 !important;
         }
 
         div[role="dialog"] {
@@ -248,7 +256,6 @@ if st.session_state["current_page"] == "Home":
     st.markdown("#### Performance Benchmark (YTD)")
     st.caption("Strategy vs. S&P 500 (SPY) | Based on 12-month backtesting data")
     
-    # (Home page chart logic omitted for brevity - same as before)
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "backtest_result.csv")
@@ -282,6 +289,7 @@ if st.session_state["current_page"] == "Home":
     with col_m1: st.metric("Accuracy", "52.6%", "vs Random (33%)")
     with col_m2: st.metric("Precision (Buy)", "64.0%", "High Confidence")
     with col_m3: st.metric("Recall (Uptrend)", "55.0%", "Opportunity Capture")
+
 # ------------------------------------------------------------------------------
 # PAGE: DASHBOARD
 # ------------------------------------------------------------------------------
@@ -315,7 +323,6 @@ elif st.session_state["current_page"] == "Dashboard":
         if latest_data:
             date_str = convert_utc_to_kst(latest_data['created_at'])
             
-            # 1. 데이터 로드 (Fin & Tech)
             f_up = latest_data.get('fin_prob_up', 0.0)
             f_down = latest_data.get('fin_prob_down', 0.0)
             f_neutral = latest_data.get('fin_prob_neutral', 0.0)
@@ -326,37 +333,15 @@ elif st.session_state["current_page"] == "Dashboard":
 
             st.markdown(f"**Analysis Time:** {date_str}")
             
-            # 섹션 헤더 및 설명
             st.markdown("##### 🎯 Final Ensemble Probabilities")
             st.caption("The delta values (Δ) indicate how **News Sentiment** adjusted the Technical Baseline.")
             
             m1, m2, m3 = st.columns(3)
             
-            # 2. 메트릭 표시
-            m1.metric(
-                "Bullish", 
-                f"{f_up*100:.1f}%", 
-                delta=f"{f_up-t_up:.1%}",
-                help=f"🤖 Tech Model: {t_up*100:.1f}%\n📰 News Impact: {f_up-t_up:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_up*100:.1f}%"
-            )
+            m1.metric("Bullish", f"{f_up*100:.1f}%", delta=f"{f_up-t_up:.1%}", help=f"🤖 Tech Model: {t_up*100:.1f}%\n📰 News Impact: {f_up-t_up:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_up*100:.1f}%")
+            m2.metric("Bearish", f"{f_down*100:.1f}%", delta=f"{f_down-t_down:.1%}", delta_color="inverse", help=f"🤖 Tech Model: {t_down*100:.1f}%\n📰 News Impact: {f_down-t_down:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_down*100:.1f}%")
+            m3.metric("Neutral", f"{f_neutral*100:.1f}%", delta=f"{f_neutral-t_neutral:.1%}", delta_color="off", help=f"🤖 Tech Model: {t_neutral*100:.1f}%\n📰 News Impact: {f_neutral-t_neutral:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_neutral*100:.1f}%")
             
-            m2.metric(
-                "Bearish", 
-                f"{f_down*100:.1f}%", 
-                delta=f"{f_down-t_down:.1%}", 
-                delta_color="inverse",
-                help=f"🤖 Tech Model: {t_down*100:.1f}%\n📰 News Impact: {f_down-t_down:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_down*100:.1f}%"
-            )
-            
-            m3.metric(
-                "Neutral", 
-                f"{f_neutral*100:.1f}%", 
-                delta=f"{f_neutral-t_neutral:.1%}", 
-                delta_color="off",
-                help=f"🤖 Tech Model: {t_neutral*100:.1f}%\n📰 News Impact: {f_neutral-t_neutral:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_neutral*100:.1f}%"
-            )
-            
-            # 3. 기술적 모델 원본 데이터 보기
             with st.expander("📊 View Technical Model Baseline", expanded=False):
                 st.caption("Raw probabilities from TMFG-LSTM model (Before News adjustment)")
                 t1, t2, t3 = st.columns(3)
@@ -364,18 +349,12 @@ elif st.session_state["current_page"] == "Dashboard":
                 t2.markdown(f"**Tech Bear:** `{t_down*100:.1f}%`")
                 t3.markdown(f"**Tech Neut:** `{t_neutral*100:.1f}%`")
 
-            # 4. 최종 결정 (Primary Signal)
             decision = latest_data.get('action', "HOLD")
             d_color = "#CCCCCC"
             if decision == "BUY": d_color = "#00E396"
             elif decision == "SELL": d_color = "#FF4560"
             
-            st.markdown(f"""
-            <div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #121926; text-align: center;'>
-                <span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Primary Signal (Weighted)</span><br>
-                <span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style='margin-top: 20px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #121926; text-align: center;'><span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Primary Signal (Weighted)</span><br><span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span></div>""", unsafe_allow_html=True)
             
             prev_signal = prev_data['action'] if prev_data else None
             strategy_text = get_strategy_text(market_option, prev_signal, decision)
@@ -391,18 +370,14 @@ elif st.session_state["current_page"] == "Dashboard":
         else:
             st.warning("Data syncing...")
 
-    # [RIGHT] Chart & Forecast & News (Moved Here)
+    # [RIGHT] Chart & Forecast & News
     with col2:
-        # ---------------------------------------------------------
-        # [수정 1] 라인을 맞추기 위해 상단에 빈 줄 추가 (Spacer)
-        # ---------------------------------------------------------
         st.write("")
         st.write("")
         st.write("") 
         st.write("") 
         st.write("") 
         st.write("") 
-
 
         st.markdown(f"**Price Action & Forecast ({IDX})**")
         try:
@@ -460,18 +435,29 @@ elif st.session_state["current_page"] == "Dashboard":
 
                         fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
 
-                    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), height=350, showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
+                    # [수정 2] 모바일 친화적 차트 설정
+                    fig.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)', 
+                        margin=dict(l=0, r=0, t=10, b=0), 
+                        # X축, Y축 고정 (Zoom/Pan 방지)
+                        xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
+                        yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
+                        height=350, 
+                        showlegend=False,
+                        # 드래그 모드 비활성화
+                        dragmode=False
+                    )
+                    
+                    # config에 scrollZoom=False 및 ModeBar 숨김 추가
+                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
+
         except Exception as e: st.error(f"Chart Error: {e}")
             
-        # ---------------------------------------------------------
-        # [수정 2] News Section을 여기(차트 바로 아래)로 이동
-        # ---------------------------------------------------------
-        st.write("") # 차트와의 간격
+        st.write("")
         st.markdown("##### Global Sentiment & Macro Insights")
         
         if latest_data:
-            # col2 내부에서 다시 컬럼을 나눕니다 (Nested Columns)
             nc1, nc2 = st.columns([1, 2.5]) 
             with nc1:
                 sent_score = latest_data.get('news_sentiment', 0.0)
