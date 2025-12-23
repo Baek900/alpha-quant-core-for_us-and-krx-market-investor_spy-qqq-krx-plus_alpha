@@ -123,9 +123,14 @@ def run_analysis_batch(market_option):
     
     # (1) 가중치 결정
     acc_model = MODEL_ACCURACY.get(market_option, 0.5)
-    # [수정] 뉴스 신뢰도에 0.5(또는 0.7)를 곱해 반영 비율을 강제로 낮춤 (Conservative Weighting)
-    # 아무리 신뢰도가 높아도 기술적 모델(acc_model)을 완전히 압도하지 못하게 함
-    damped_reliability = news_data['reliability'] * 0.6  # 60%만 인정
+    
+    # [수정] 제곱(Square) 로직 적용 + Scaling
+    # 이유: 낮은 신뢰도는 급격히 낮추고(Penalty), 높은 신뢰도는 보존.
+    # 0.8을 곱하는 이유: 제곱으로 인해 전체 값이 작아지므로 상한선을 기존 0.6보다 상향 조정하되,
+    # 기술적 모델(acc_model)을 압도하지 않도록 안전장치 마련.
+    # 예: Rel 0.5 -> 0.25 * 0.8 = 0.2 (미미함)
+    # 예: Rel 0.9 -> 0.81 * 0.8 = 0.648 (상당한 영향력)
+    damped_reliability = (news_data['reliability'] ** 2) * 0.8
     
     total_weight = acc_model + damped_reliability
     if total_weight == 0: total_weight = 1
