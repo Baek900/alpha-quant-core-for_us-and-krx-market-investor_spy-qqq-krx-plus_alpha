@@ -1,0 +1,27 @@
+# --- 1. 보안 파일 (절대 업로드 금지) ---
+.env
+.env.*
+.streamlit/secrets.toml
+secrets.toml
+
+# --- 2. Python 필수 제외 항목 ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- 3. 가상환경 폴더 (있다면) ---
+venv/
+env/
+.venv/
+.conda/
+
+# --- 4. OS 및 에디터 설정 파일 ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- 5. 데이터 파일 (로컬 테스트용 데이터가 있다면) ---
+*.csv
+*.xlsx
+# 단, backtest_result.csv 처럼 꼭 필요한 파일은 예외 처리하려면 앞에 !를 붙이세요.
+# 예: !backtest_result.csv

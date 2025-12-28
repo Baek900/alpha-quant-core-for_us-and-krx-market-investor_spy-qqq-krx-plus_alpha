@@ -2,13 +2,18 @@ name: Daily Analysis (Korea)
 
 on:
   schedule:
-    - cron: '0 23 * * *'
+    # 1. Prediction: UTC 23:00 (한국 시간 다음날 아침 08:00)
+    # [변경] 일~목(0-4)에만 실행 -> 한국 시간 기준 월~금 작동 (주말 제외)
+    - cron: '0 23 * * 0-4'
+    
+    # 2. Monitor: UTC 06:00 (한국 시간 오후 15:00)
+    # [유지] 매일 실행
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
-  run-analysis:
+  run-kr-analysis:
     runs-on: ubuntu-latest
-    
     defaults:
       run:
         working-directory: ./My_AI_Advisor
@@ -24,24 +29,28 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        # PyTorch CPU 버전 (서버 용량 절약)
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        
         # requirements.txt가 있으면 설치
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
-        # [최신 문서 반영]
-        # langchain-tavily(X) -> langchain-community(O)
-        # 1. langchain-community: Tavily 도구가 여기 들어있음
-        # 2. langchain-google-genai: Gemini 모델 사용
-        # 3. tavily-python: Tavily 기본 SDK
-        pip install langchain-community langchain-core langchain-google-genai tavily-python supabase pandas
+        # [수정] 맨 끝에 python-dotenv를 추가했습니다.
+        pip install langchain-community langchain-core langchain-google-genai tavily-python supabase pandas yfinance pykrx plotly python-dotenv
 
-    - name: Run Analysis Script (Korea)
+    - name: Run Prediction Logic (Signal)
+      if: github.event.schedule == '0 23 * * 0-4' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: python daily_batch.py kr
+
+    # [Monitor] - 매일 실행
+    - name: Run Monitor Logic (Reference)
+      if: github.event.schedule == '0 6 * * *'
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      run: python daily_monitor.py kr

@@ -1,95 +1,147 @@
 import os
 import sys
-import time
+from dotenv import load_dotenv
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 import torch
 import torch.nn.functional as F
-import numpy as np
 from supabase import create_client, Client
+from datetime import datetime, timedelta, date
+from zoneinfo import ZoneInfo
 
 # 모듈 임포트
 from model_def import StockClassifierModel
 from data_loader import get_us_data, get_kr_data
-from news_agent import get_news_analysis 
+from news_agent import get_news_analysis
+
+
 
 # 환경변수
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-
-if not SUPABASE_URL:
-    print("⚠️ Supabase 설정 없음. 로컬 테스트 모드")
-    supabase = None
-else:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# [설정] 모델별 검증된 정확도 (Baseline Accuracy)
 MODEL_ACCURACY = {
-    "S&P 500 (SPY)": 0.53,
-    "NASDAQ (QQQ)": 0.58,
-    "KOSPI (Korea)": 0.42
+    "S&P 500 (SPY)": 0.53, "NASDAQ (QQQ)": 0.58, "KOSPI (Korea)": 0.42
+}
+IS_TEST_MODE = os.environ.get("TEST_MODE", "false").lower() == "true"
+PREDICTION_TABLE = "prediction_logs_test" if IS_TEST_MODE else "prediction_logs"
+
+if IS_TEST_MODE:
+    print(f"⚠️ [TEST MODE] 데이터가 '{PREDICTION_TABLE}'에 저장됩니다.")
+    
+# [NEW] 2026년 휴장일 데이터 (YYYY-MM-DD)
+HOLIDAYS_2026 = {
+    "us": {
+        "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03",
+        "2026-05-25", "2026-06-19", "2026-07-03", "2026-09-07",
+        "2026-11-26", "2026-12-25"
+    },
+    "kr": {
+        "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18",
+        "2026-03-02", "2026-05-01", "2026-05-05", "2026-05-25",
+        "2026-06-06", "2026-08-17", "2026-09-24", "2026-09-25",
+        "2026-09-26", "2026-10-05", "2026-10-09", "2026-12-25",
+        "2026-12-31"
+    }
 }
 
-def save_to_supabase(market, tech_probs, fin_probs, news_data, w_tech, w_news, action):
-    if not supabase: return False
-    try:
-        # News Score (Display용 0~100)
-        news_score_display = int((news_data['sentiment'] + 1) * 50)
+def is_market_open(market_type, current_date):
+    """
+    오늘이 휴장일인지 확인 (주말은 YAML Cron에서 1차 필터링하지만, 여기서도 안전장치로 확인)
+    """
+    date_str = current_date.strftime("%Y-%m-%d")
+    
+    # 1. 주말 체크 (5=토, 6=일)
+    if current_date.weekday() >= 5:
+        print(f"🛑 [Market Closed] {date_str} is Weekend.")
+        return False
         
+    # 2. 휴장일 체크
+    if date_str in HOLIDAYS_2026.get(market_type, set()):
+        print(f"🛑 [Market Closed] {date_str} is a Holiday.")
+        return False
+        
+    return True
+
+def get_signal_cutoff(market_option):
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    
+    if "Korea" in market_option:
+        tz = ZoneInfo("Asia/Seoul")
+        market_type = "kr"
+        local_now = now_utc.astimezone(tz)
+        cutoff = local_now.replace(hour=6, minute=0, second=0, microsecond=0)
+    else:
+        tz = ZoneInfo("US/Eastern")
+        market_type = "us"
+        local_now = now_utc.astimezone(tz)
+        if local_now.hour < 12:
+            cutoff = (local_now - timedelta(days=1)).replace(hour=20, minute=0, second=0)
+        else:
+            cutoff = local_now.replace(hour=20, minute=0, second=0)
+
+    return tz, cutoff, market_type
+
+def save_prediction(market, tech_probs, fin_probs, news_data, w_tech, w_news, action):
+    if not supabase: return
+    try:
         data = {
             "market_name": market,
-            
-            # [신규] 기술적 모델 확률 (Raw)
             "tech_prob_down": round(float(tech_probs[0]), 4),
             "tech_prob_neutral": round(float(tech_probs[1]), 4),
             "tech_prob_up": round(float(tech_probs[2]), 4),
-            
-            # [신규] 앙상블 최종 확률 (Final)
             "fin_prob_down": round(float(fin_probs[0]), 4),
             "fin_prob_neutral": round(float(fin_probs[1]), 4),
             "fin_prob_up": round(float(fin_probs[2]), 4),
-            
-            # 뉴스 데이터
-            "news_sentiment": round(float(news_data['sentiment']), 4),
-            "news_reliability": round(float(news_data['reliability']), 4),
-            "news_summary": news_data['summary'],
-            "news_score": news_score_display,
-            
-            # 가중치
             "w_tech": round(float(w_tech), 4),
             "w_news": round(float(w_news), 4),
-            
+            "news_sentiment": news_data.sentiment,
+            "news_reliability": news_data.reliability,
+            "news_summary": news_data.final_summary,
+            "news_score": int((news_data.sentiment + 1) * 50),
+            "news_risk_score": news_data.risk_score,
+            "news_metadata": news_data.dict(),
             "action": action
         }
-        
-        supabase.table("prediction_logs").insert(data).execute()
-        print(f"✅ [{market}] 저장 완료 | Action: {action} (Fin Up: {data['fin_prob_up']})")
-        return True
+        supabase.table(PREDICTION_TABLE).insert(data).execute()
+        print(f"✅ [Prediction] 저장 완료 ({PREDICTION_TABLE}): {market}")
     except Exception as e:
-        print(f"❌ DB 저장 실패: {e}")
-        return False
+        print(f"❌ [Prediction] 저장 실패: {e}")
 
-def run_analysis_batch(market_option):
-    print(f"🚀 배치 시작: {market_option}")
+def run_prediction_batch(market_option):
+    print(f"🚀 [Prediction Job] 시작: {market_option}")
     
-    # 1. 설정 로드
+    # 1. 시간 및 휴장일 확인
+    tz, cutoff_time, market_type = get_signal_cutoff(market_option)
+    cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M")
+    
+    # [핵심 로직] 휴장일이면 여기서 즉시 종료
+    if not is_market_open(market_type, cutoff_time.date()):
+        print("💤 휴장일이므로 예측 프로세스를 건너뜁니다.")
+        return
+
+    print(f"🔒 News Cutoff Time: {cutoff_str} ({tz})")
+
+    # 2. 기술적 모델 (PyTorch)
     if market_option == "NASDAQ (QQQ)":
         MODEL_FILE = os.path.join(BASE_DIR, "models", "us_sector_ai_model_qqq.pth")
         SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
-        search_query = "latest market sentiment news for NASDAQ 100 QQQ ETF today macro economics"
+        query = "latest market sentiment news for NASDAQ 100 QQQ ETF today macro economics"
     elif market_option == "S&P 500 (SPY)":
         MODEL_FILE = os.path.join(BASE_DIR, "models", "us_spy_target_best_model.pth")
         SECTORS = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
-        search_query = "latest market sentiment news for S&P 500 SPY ETF today macro economics"
-    else: # KOSPI
+        query = "latest market sentiment news for S&P 500 SPY ETF today macro economics"
+    else:
         MODEL_FILE = os.path.join(BASE_DIR, "models", "kospi_model.pth")
         SECTORS = []
-        search_query = "latest south korea kospi stock market news today macro economics"
+        query = "latest south korea kospi stock market news today macro economics"
 
-    # 2. 기술적 모델 예측
+    # 모델 로드 및 추론
     device = torch.device('cpu')
     model = StockClassifierModel().to(device)
-    
     try:
         model.load_state_dict(torch.load(MODEL_FILE, map_location=device))
         model.eval()
@@ -97,103 +149,46 @@ def run_analysis_batch(market_option):
         print(f"❌ 모델 로드 실패: {e}")
         return
 
-    if "KOSPI" in market_option:
-        input_tensor, _ = get_kr_data()
-    else:
-        input_tensor, _ = get_us_data(SECTORS)
+    if market_type == "kr": input_tensor, _ = get_kr_data()
+    else: input_tensor, _ = get_us_data(SECTORS)
 
-    if input_tensor is None:
-        print("❌ 데이터 수집 실패")
-        return
+    if input_tensor is None: return
 
     with torch.no_grad():
         logits = model(input_tensor)
         if isinstance(logits, tuple): logits = logits[1]
         probs = F.softmax(logits, dim=1).squeeze().numpy()
     
-    # [기술적 확률]
     t_down, t_neutral, t_up = probs[0], probs[1], probs[2]
 
-    # 3. 뉴스 분석 수행
-    news_data = get_news_analysis(market_option, search_query)
-    sentiment = news_data['sentiment']   # -1 ~ 1
-    reliability = news_data['reliability'] # 0 ~ 1
-    
-    # 4. [핵심] 앙상블 가중치 및 확률 계산
-    
-    # (1) 가중치 결정
+    # 3. 뉴스 에이전트
+    news_obj = get_news_analysis(market_option, query, cutoff_str, str(tz))
+    if not news_obj: return
+
+    # 4. 앙상블 (Ensemble)
     acc_model = MODEL_ACCURACY.get(market_option, 0.5)
+    w_tech = acc_model / (acc_model + (news_obj.reliability**2 * 0.8))
+    w_news = 1 - w_tech
     
-    # [수정] 제곱(Square) 로직 적용 + Scaling
-    # 이유: 낮은 신뢰도는 급격히 낮추고(Penalty), 높은 신뢰도는 보존.
-    # 0.8을 곱하는 이유: 제곱으로 인해 전체 값이 작아지므로 상한선을 기존 0.6보다 상향 조정하되,
-    # 기술적 모델(acc_model)을 압도하지 않도록 안전장치 마련.
-    # 예: Rel 0.5 -> 0.25 * 0.8 = 0.2 (미미함)
-    # 예: Rel 0.9 -> 0.81 * 0.8 = 0.648 (상당한 영향력)
-    damped_reliability = (news_data['reliability'] ** 2) * 0.8
+    final_down = (t_down * w_tech) + (max(0, -news_obj.sentiment) * w_news)
+    final_neutral = (t_neutral * w_tech) + ((1 - abs(news_obj.sentiment)) * w_news)
+    final_up = (t_up * w_tech) + (max(0, news_obj.sentiment) * w_news)
     
-    total_weight = acc_model + damped_reliability
-    if total_weight == 0: total_weight = 1
+    # Normalize
+    total = final_down + final_neutral + final_up
+    final_down, final_neutral, final_up = final_down/total, final_neutral/total, final_up/total
     
-    w_tech = acc_model / total_weight
-    w_news = damped_reliability / total_weight
-    
-    # (2) 뉴스 감정을 확률 벡터로 변환
-    n_up = max(0.0, sentiment)
-    n_down = max(0.0, -sentiment)
-    n_neutral = 1.0 - abs(sentiment)
-    
-    # (3) 최종 확률 앙상블 (Weighted Sum)
-    final_down = (t_down * w_tech) + (n_down * w_news)
-    final_neutral = (t_neutral * w_tech) + (n_neutral * w_news)
-    final_up = (t_up * w_tech) + (n_up * w_news)
-    
-    # 합이 1이 되도록 정규화
-    total_prob = final_down + final_neutral + final_up
-    final_down /= total_prob
-    final_neutral /= total_prob
-    final_up /= total_prob
-    
-    # 5. 의사 결정 (Threshold 0.45 Rule)
-    prob_map = {
-        "SELL": final_down,
-        "HOLD": final_neutral,
-        "BUY": final_up
-    }
-    
+    # Action
+    prob_map = {"SELL": final_down, "HOLD": final_neutral, "BUY": final_up}
     best_action = max(prob_map, key=prob_map.get)
-    max_prob = prob_map[best_action]
-    
-    if max_prob < 0.45:
-        final_action = "HOLD"
-        print(f"⚖️ 판단 보류: 최대 확률({max_prob:.4f})이 임계값(0.45) 미달 -> HOLD 강제")
-    else:
-        final_action = best_action
-        
-    # 6. 저장 (변경된 스키마에 맞춰 인자 전달)
-    save_to_supabase(
-        market_option, 
-        [t_down, t_neutral, t_up],        # 기술적 확률
-        [final_down, final_neutral, final_up], # 최종 확률
-        news_data, 
-        w_tech, 
-        w_news,
-        final_action
-    )
+    if prob_map[best_action] < 0.45: best_action = "HOLD"
+
+    # 5. 저장
+    save_prediction(market_option, [t_down, t_neutral, t_up], 
+                    [final_down, final_neutral, final_up], 
+                    news_obj, w_tech, w_news, best_action)
 
 if __name__ == "__main__":
-    mode = "all"
-    if len(sys.argv) > 1:
-        mode = sys.argv[1].lower()
-
-    if mode == "kr": markets = ["KOSPI (Korea)"]
-    elif mode == "us": markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)"]
-    else: markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)", "KOSPI (Korea)"]
-
-    print(f"🔄 Mode: {mode} / Targets: {markets}")
-    
-    for i, m in enumerate(markets):
-        run_analysis_batch(m)
-        if i < len(markets) - 1:
-            print("⏳ API 요청 제한 방지를 위해 20초 대기 중...")
-            time.sleep(20)
+    target = sys.argv[1] if len(sys.argv) > 1 else "us"
+    markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)"] if target == "us" else ["KOSPI (Korea)"]
+    for m in markets: run_prediction_batch(m)
