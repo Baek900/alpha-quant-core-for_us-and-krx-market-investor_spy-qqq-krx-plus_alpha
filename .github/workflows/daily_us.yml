@@ -2,13 +2,18 @@ name: Daily Analysis (USA)
 
 on:
   schedule:
-    # 1. Prediction Job: 매일 UTC 11:00 (미국 동부 아침 07:00)
-    # [변경] 월~금(1-5)에만 실행 (주말 제외) -> 공휴일 체크는 파이썬 내부에서 수행
-    - cron: '0 11 * * 1-5'
+    # 1. Prediction Job: 매일 UTC 12:00 (한국 21:00)
+    # [변경] 월~금(1-5) 실행 (미국 프리마켓/장전 시간대)
+    - cron: '0 12 * * 1-5'
     
-    # 2. Monitor Job: 매일 UTC 21:00 (미국 장 마감 후)
-    # [유지] 주말/휴일 포함 매일 실행하여 뉴스 모니터링
-    - cron: '0 21 * * *'
+    # 2. Monitor Job A: 매일 UTC 13:00, 13:30 (한국 22:00, 22:30)
+    # 미국 장 시작 직전/직후 모니터링
+    - cron: '0,30 13 * * *'
+
+    # 3. Monitor Job B: 매일 UTC 14:40 (한국 23:40)
+    # 미국 장 초반 흐름 모니터링
+    - cron: '40 14 * * *'
+
   workflow_dispatch:
 
 jobs:
@@ -36,9 +41,9 @@ jobs:
         # [수정] 맨 끝에 python-dotenv를 추가했습니다.
         pip install langchain-community langchain-core langchain-google-genai tavily-python supabase pandas yfinance pykrx plotly python-dotenv
 
-    # [Prediction] - 월~금 실행 (휴장일일 경우 내부 로직으로 Skip)
+    # [Prediction] UTC 12:00 (한국 21:00)에 실행
     - name: Run Prediction Logic (Signal)
-      if: github.event.schedule == '0 11 * * 1-5' || github.event_name == 'workflow_dispatch'
+      if: github.event.schedule == '0 12 * * 1-5' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -46,9 +51,10 @@ jobs:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: python daily_batch.py us
 
-    # [Monitor] - 매일 실행
+    # [Monitor] UTC 13:xx, 14:xx (한국 22시, 23시 대)에 실행
+    # 조건: 스케줄이 13시 대(22:00, 22:30)이거나 14시 대(23:40)일 때
     - name: Run Monitor Logic (Reference)
-      if: github.event.schedule == '0 21 * * *'
+      if: github.event.schedule == '0,30 13 * * *' || github.event.schedule == '40 14 * * *'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
