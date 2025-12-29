@@ -15,8 +15,6 @@ from model_def import StockClassifierModel
 from data_loader import get_us_data, get_kr_data
 from news_agent import get_news_analysis
 
-
-
 # 환경변수
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -50,7 +48,7 @@ HOLIDAYS_2026 = {
 
 def is_market_open(market_type, current_date):
     """
-    오늘이 휴장일인지 확인 (주말은 YAML Cron에서 1차 필터링하지만, 여기서도 안전장치로 확인)
+    오늘이 휴장일인지 확인
     """
     date_str = current_date.strftime("%Y-%m-%d")
     
@@ -66,6 +64,7 @@ def is_market_open(market_type, current_date):
         
     return True
 
+# [수정된 함수]
 def get_signal_cutoff(market_option):
     now_utc = datetime.now(ZoneInfo("UTC"))
     
@@ -73,15 +72,17 @@ def get_signal_cutoff(market_option):
         tz = ZoneInfo("Asia/Seoul")
         market_type = "kr"
         local_now = now_utc.astimezone(tz)
+        # 한국: 아침 7~8시에 돌리므로, '오늘 아침 6시'까지의 뉴스 반영
         cutoff = local_now.replace(hour=6, minute=0, second=0, microsecond=0)
     else:
         tz = ZoneInfo("US/Eastern")
         market_type = "us"
         local_now = now_utc.astimezone(tz)
-        if local_now.hour < 12:
-            cutoff = (local_now - timedelta(days=1)).replace(hour=20, minute=0, second=0)
-        else:
-            cutoff = local_now.replace(hour=20, minute=0, second=0)
+        
+        # 미국: 장 시작 전(07:00~09:00 EST)에 돌림.
+        # 따라서 '오늘 날짜'인지가 중요함. 과거로 돌리지 않고 '현재 시각'을 기준으로 함.
+        # 뉴스는 "실행 시점(현재)"까지 나온 모든 속보를 반영하는 것이 유리함.
+        cutoff = local_now 
 
     return tz, cutoff, market_type
 
@@ -118,7 +119,7 @@ def run_prediction_batch(market_option):
     tz, cutoff_time, market_type = get_signal_cutoff(market_option)
     cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M")
     
-    # [핵심 로직] 휴장일이면 여기서 즉시 종료
+    # [수정] cutoff_time(현재 시각)의 날짜(Date)가 휴장일인지 체크
     if not is_market_open(market_type, cutoff_time.date()):
         print("💤 휴장일이므로 예측 프로세스를 건너뜁니다.")
         return
@@ -167,28 +168,4 @@ def run_prediction_batch(market_option):
 
     # 4. 앙상블 (Ensemble)
     acc_model = MODEL_ACCURACY.get(market_option, 0.5)
-    w_tech = acc_model / (acc_model + (news_obj.reliability**2 * 0.8))
-    w_news = 1 - w_tech
-    
-    final_down = (t_down * w_tech) + (max(0, -news_obj.sentiment) * w_news)
-    final_neutral = (t_neutral * w_tech) + ((1 - abs(news_obj.sentiment)) * w_news)
-    final_up = (t_up * w_tech) + (max(0, news_obj.sentiment) * w_news)
-    
-    # Normalize
-    total = final_down + final_neutral + final_up
-    final_down, final_neutral, final_up = final_down/total, final_neutral/total, final_up/total
-    
-    # Action
-    prob_map = {"SELL": final_down, "HOLD": final_neutral, "BUY": final_up}
-    best_action = max(prob_map, key=prob_map.get)
-    if prob_map[best_action] < 0.45: best_action = "HOLD"
-
-    # 5. 저장
-    save_prediction(market_option, [t_down, t_neutral, t_up], 
-                    [final_down, final_neutral, final_up], 
-                    news_obj, w_tech, w_news, best_action)
-
-if __name__ == "__main__":
-    target = sys.argv[1] if len(sys.argv) > 1 else "us"
-    markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)"] if target == "us" else ["KOSPI (Korea)"]
-    for m in markets: run_prediction_batch(m)
+    w_tech = acc_model / (acc_model + (news_obj
