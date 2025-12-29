@@ -51,7 +51,7 @@ jobs:
 
     # [Monitor] UTC 23:00, 00:00, 00:30 (한국 08:00, 09:00, 09:30)에 실행
     - name: Run Monitor Logic (Reference)
-      if: github.event.schedule == '0 23 * * *' || github.event.schedule == '0,30 0 * * *'
+      if: github.event.schedule == '0 23 * * *' || github.event.schedule == '0,30 0 * * *' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
