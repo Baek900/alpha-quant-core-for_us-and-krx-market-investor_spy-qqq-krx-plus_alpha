@@ -55,7 +55,7 @@ def is_market_open(market_type, current_date):
     date_str = current_date.strftime("%Y-%m-%d")
     
     # 1. 주말 체크 (5=토, 6=일)
-    if current_date.weekday() >= 6:
+    if current_date.weekday() >= 5:
         print(f"🛑 [Market Closed] {date_str} is Weekend.")
         return False
         
