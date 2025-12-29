@@ -64,7 +64,7 @@ def is_market_open(market_type, current_date):
         
     return True
 
-# [수정된 함수]
+# [수정 포인트 1] 날짜 계산 로직 단순화 (어제로 돌아가는 로직 삭제)
 def get_signal_cutoff(market_option):
     now_utc = datetime.now(ZoneInfo("UTC"))
     
@@ -79,9 +79,8 @@ def get_signal_cutoff(market_option):
         market_type = "us"
         local_now = now_utc.astimezone(tz)
         
-        # 미국: 장 시작 전(07:00~09:00 EST)에 돌림.
-        # 따라서 '오늘 날짜'인지가 중요함. 과거로 돌리지 않고 '현재 시각'을 기준으로 함.
-        # 뉴스는 "실행 시점(현재)"까지 나온 모든 속보를 반영하는 것이 유리함.
+        # 미국: 장 시작 전(오전)에 실행하므로 '현재 시각'을 그대로 사용
+        # (과거 날짜로 빼버리면 월요일 아침에 일요일로 인식하는 오류 발생)
         cutoff = local_now 
 
     return tz, cutoff, market_type
@@ -119,7 +118,7 @@ def run_prediction_batch(market_option):
     tz, cutoff_time, market_type = get_signal_cutoff(market_option)
     cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M")
     
-    # [수정] cutoff_time(현재 시각)의 날짜(Date)가 휴장일인지 체크
+    # 휴장일 체크 (현재 시각 기준 날짜로 체크)
     if not is_market_open(market_type, cutoff_time.date()):
         print("💤 휴장일이므로 예측 프로세스를 건너뜁니다.")
         return
@@ -168,4 +167,30 @@ def run_prediction_batch(market_option):
 
     # 4. 앙상블 (Ensemble)
     acc_model = MODEL_ACCURACY.get(market_option, 0.5)
-    w_tech = acc_model / (acc_model + (news_obj
+    
+    # [수정 포인트 2] 괄호 및 구문 오류 수정
+    w_tech = acc_model / (acc_model + (news_obj.reliability**2 * 0.8))
+    w_news = 1 - w_tech
+    
+    final_down = (t_down * w_tech) + (max(0, -news_obj.sentiment) * w_news)
+    final_neutral = (t_neutral * w_tech) + ((1 - abs(news_obj.sentiment)) * w_news)
+    final_up = (t_up * w_tech) + (max(0, news_obj.sentiment) * w_news)
+    
+    # Normalize
+    total = final_down + final_neutral + final_up
+    final_down, final_neutral, final_up = final_down/total, final_neutral/total, final_up/total
+    
+    # Action
+    prob_map = {"SELL": final_down, "HOLD": final_neutral, "BUY": final_up}
+    best_action = max(prob_map, key=prob_map.get)
+    if prob_map[best_action] < 0.45: best_action = "HOLD"
+
+    # 5. 저장
+    save_prediction(market_option, [t_down, t_neutral, t_up], 
+                    [final_down, final_neutral, final_up], 
+                    news_obj, w_tech, w_news, best_action)
+
+if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else "us"
+    markets = ["NASDAQ (QQQ)", "S&P 500 (SPY)"] if target == "us" else ["KOSPI (Korea)"]
+    for m in markets: run_prediction_batch(m)
