@@ -54,7 +54,7 @@ jobs:
     # [Monitor] UTC 13:xx, 14:xx (한국 22시, 23시 대)에 실행
     # 조건: 스케줄이 13시 대(22:00, 22:30)이거나 14시 대(23:40)일 때
     - name: Run Monitor Logic (Reference)
-      if: github.event.schedule == '0,30 13 * * *' || github.event.schedule == '40 14 * * *'
+      if: github.event.schedule == '0,30 13 * * *' || github.event.schedule == '40 14 * * *' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
