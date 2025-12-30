@@ -2,9 +2,9 @@ name: Daily Analysis (USA)
 
 on:
   schedule:
-    # 1. Prediction Job: 매일 UTC 12:00 (한국 21:00)
+    # 1. Prediction Job: 매일 UTC 11:00 (한국 20:00)
     # [변경] 월~금(1-5) 실행 (미국 프리마켓/장전 시간대)
-    - cron: '0 12 * * 1-5'
+    - cron: '0 11 * * 1-5'
     
     # 2. Monitor Job A: 매일 UTC 13:00, 13:30 (한국 22:00, 22:30)
     # 미국 장 시작 직전/직후 모니터링
