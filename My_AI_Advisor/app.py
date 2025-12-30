@@ -14,9 +14,12 @@ import os
 # ==============================================================================
 st.set_page_config(page_title="TITAN FLOW - AI Advisor", layout="wide", page_icon="T")
 
-MARKET_STATS = {"S&P 500 (SPY)": {"bear": -0.005482, "neut": 0.000151, "bull": 0.004402},
-                "NASDAQ (QQQ)": {"bear": -0.006119, "neut": 0.000125, "bull": 0.005435},
-                "KOSPI (Korea)": {"bear": -0.002751, "neut": -0.001029, "bull": 0.002401}}
+# 시장별 통계 데이터
+MARKET_STATS = {
+    "S&P 500 (SPY)": {"bear": -0.005482, "neut": 0.000151, "bull": 0.004402},
+    "NASDAQ (QQQ)": {"bear": -0.006119, "neut": 0.000125, "bull": 0.005435},
+    "KOSPI (Korea)": {"bear": -0.002751, "neut": -0.001029, "bull": 0.002401}
+}
 
 # 챌린지 시뮬레이션용 자산 정보
 CHALLENGE_ASSETS = {
@@ -135,6 +138,7 @@ def load_all_predictions(market_name):
             df = pd.DataFrame(response.data)
             df['created_at'] = pd.to_datetime(df['created_at'])
             df['date_only'] = df['created_at'].dt.date
+            # 하루에 여러 번 실행될 경우 마지막 신호 기준
             df = df.sort_values('created_at').drop_duplicates('date_only', keep='last')
             return df
         return pd.DataFrame()
@@ -156,7 +160,7 @@ def get_strategy_text(market_name, prev_signal, current_signal):
         target_long, target_short = "KODEX Leverage", "KODEX 200 Inverse"
 
     if current_signal == "BUY":
-        return f"**Bullish Trend Detected.** The AI model probabilities indicate a structural uptrend. It is recommended to accumulate **{target_long}**."
+        return f"**Bullish Trend Detected.** The AI model probabilities indicate a structural uptrend. It is recommended to accumulate **{target_long}**. Maintain exposure while monitoring for trend exhaustion."
     elif current_signal == "SELL":
         return f"**Bearish Risk Detected.** Market probabilities have shifted downward. It is advised to liquidate long positions and hedge downside risk using **{target_short}** or hold Cash."
     else:
@@ -188,8 +192,11 @@ def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
     short_chg = pct_changes * (-lev_mult)
     
     for i in range(1, len(dates)):
+        # Long Asset Price
         l_next = sim_long[-1] * (1 + long_chg[i])
+        # Short Asset Price
         s_next = sim_short[-1] * (1 + short_chg[i])
+        
         sim_long.append(max(0.01, l_next)) # 0이하 방지
         sim_short.append(max(0.01, s_next))
         
@@ -220,7 +227,7 @@ def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
                 cash += shares_short * p_short
                 shares_short = 0
             
-            # 2) Long 포지션 진입
+            # 2) Long 포지션 진입 (현금 보유 시)
             if cash > p_long:
                 amt = cash if strategy_mode == "Full Switching" else cash * 0.5
                 n = int(amt // p_long)
@@ -235,7 +242,7 @@ def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
                 cash += shares_long * p_long
                 shares_long = 0
                 
-            # 2) Short(인버스) 포지션 진입
+            # 2) Short(인버스) 포지션 진입 (현금 보유 시)
             if cash > p_short:
                 amt = cash if strategy_mode == "Full Switching" else cash * 0.5
                 n = int(amt // p_short)
@@ -246,7 +253,7 @@ def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
         
         # HOLD: 현 포지션 유지
         
-        # 평가금 합산
+        # 평가금 합산 (현금 + Long평가액 + Short평가액)
         total_val = cash + (shares_long * p_long) + (shares_short * p_short)
         portfolio_value.append(total_val)
         
@@ -275,7 +282,7 @@ if st.session_state["password_correct"]:
     st.session_state["current_page"] = "Dashboard"
 
 # ==============================================================================
-# PAGE: HOME (복구됨)
+# PAGE: HOME
 # ==============================================================================
 if st.session_state["current_page"] == "Home":
     col_header, col_login = st.columns([6, 1])
@@ -412,6 +419,20 @@ elif st.session_state["current_page"] == "Dashboard":
                 
                 if st.button("Refresh Analysis"): st.rerun()
 
+                # [Reference News Section]
+                st.write("")
+                st.markdown("##### 📡 Market Monitoring (Reference)")
+                if ref_data:
+                    ref_time = convert_utc_to_kst(ref_data['created_at'])
+                    with st.expander(f"Last Update: {ref_time}", expanded=True):
+                        st.markdown(f"**Summary:** {ref_data.get('reference_summary', '-')}")
+                        st.caption(f"**Risk Analysis:** {ref_data.get('detected_risks', '-')}")
+                        st.markdown(f"**Risk Level:** `{ref_data.get('risk_level', 0.0)}`")
+                else:
+                    st.info("No monitoring data available.")
+
+            else:
+                st.warning("Data syncing...")
 
         # [RIGHT] Chart & Forecast & News
         with col2:
@@ -513,21 +534,6 @@ elif st.session_state["current_page"] == "Dashboard":
                 with nc2:
                     summary = latest_data.get('news_summary', "No summary available.")
                     st.info(f"📰 **Market Summary (English):**\n\n{summary}")
-                  
-                # [Reference News Section]
-                st.write("")
-                st.markdown("##### 📡 Market Monitoring (Reference)")
-                if ref_data:
-                    ref_time = convert_utc_to_kst(ref_data['created_at'])
-                    with st.expander(f"Last Update: {ref_time}", expanded=True):
-                        st.markdown(f"**Summary:** {ref_data.get('reference_summary', '-')}")
-                        st.caption(f"**Risk Analysis:** {ref_data.get('detected_risks', '-')}")
-                        st.markdown(f"**Risk Level:** `{ref_data.get('risk_level', 0.0)}`")
-                else:
-                    st.info("No monitoring data available.")
-
-            else:
-                st.warning("Data syncing...")
 
     # --------------------------------------------------------------------------
     # TAB 2: Challenge
@@ -623,8 +629,17 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=eq_ens_lev, mode='lines', name=f'AI Ens ({lev_mult}x) {ret_el:+.1f}%', line=dict(color='#00E396', width=3)))
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=eq_tech_lev, mode='lines', name=f'Tech ({lev_mult}x) {ret_tl:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
-                        fig_lev.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=True, gridcolor='#333'), yaxis=dict(showgrid=True, gridcolor='#333', tickprefix=currency), legend=dict(orientation="h", y=1.1), height=400)
-                        st.plotly_chart(fig_lev, use_container_width=True)
+                        fig_lev.update_layout(
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)', 
+                            font=dict(color='#E0E0E0'),
+                            xaxis=dict(showgrid=True, gridcolor='#333', fixedrange=True), 
+                            yaxis=dict(showgrid=True, gridcolor='#333', tickprefix=currency, fixedrange=True), 
+                            legend=dict(orientation="h", y=1.1), 
+                            height=400,
+                            dragmode=False
+                        )
+                        st.plotly_chart(fig_lev, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
                         
                         m1, m2, m3 = st.columns(3)
                         m1.metric("AI Ensemble", f"{currency}{eq_ens_lev[-1]:,.0f}", f"{ret_el:+.2f}%")
@@ -642,8 +657,17 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=eq_ens_1x, mode='lines', name=f'AI Ens (1x) {ret_e1:+.1f}%', line=dict(color='#00E396', width=3)))
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=eq_tech_1x, mode='lines', name=f'Tech (1x) {ret_t1:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
-                        fig_no.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=True, gridcolor='#333'), yaxis=dict(showgrid=True, gridcolor='#333', tickprefix=currency), legend=dict(orientation="h", y=1.1), height=400)
-                        st.plotly_chart(fig_no, use_container_width=True)
+                        fig_no.update_layout(
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)', 
+                            font=dict(color='#E0E0E0'),
+                            xaxis=dict(showgrid=True, gridcolor='#333', fixedrange=True), 
+                            yaxis=dict(showgrid=True, gridcolor='#333', tickprefix=currency, fixedrange=True), 
+                            legend=dict(orientation="h", y=1.1), 
+                            height=400,
+                            dragmode=False
+                        )
+                        st.plotly_chart(fig_no, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
                         
                         mm1, mm2, mm3 = st.columns(3)
                         mm1.metric("AI Ensemble (1x)", f"{currency}{eq_ens_1x[-1]:,.0f}", f"{ret_e1:+.2f}%")
