@@ -629,6 +629,8 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=eq_ens_lev, mode='lines', name=f'AI Ens ({lev_mult}x) {ret_el:+.1f}%', line=dict(color='#00E396', width=3)))
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=eq_tech_lev, mode='lines', name=f'Tech ({lev_mult}x) {ret_tl:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
+                        
+                        # [수정] 폰트 색상 은색 고정 및 인터랙션 제거
                         fig_lev.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
@@ -657,6 +659,8 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=eq_ens_1x, mode='lines', name=f'AI Ens (1x) {ret_e1:+.1f}%', line=dict(color='#00E396', width=3)))
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=eq_tech_1x, mode='lines', name=f'Tech (1x) {ret_t1:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
+                        
+                        # [수정] 폰트 색상 은색 고정 및 인터랙션 제거
                         fig_no.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
