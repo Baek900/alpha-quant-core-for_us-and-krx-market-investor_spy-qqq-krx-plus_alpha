@@ -15,10 +15,23 @@ import os
 st.set_page_config(page_title="TITAN FLOW - AI Advisor", layout="wide", page_icon="T")
 
 # 시장별 통계 데이터
+# 시장별 통계 데이터
 MARKET_STATS = {
-    "S&P 500 (SPY)": {"bear": -0.005482, "neut": 0.000151, "bull": 0.004402},
-    "NASDAQ (QQQ)": {"bear": -0.006119, "neut": 0.000125, "bull": 0.005435},
-    "KOSPI (Korea)": {"bear": -0.002751, "neut": -0.001029, "bull": 0.002401}
+    "S&P 500 (SPY)": {
+        "bear": -0.005482, 
+        "neut": 0.000151, 
+        "bull": 0.004402
+    },
+    "NASDAQ (QQQ)": {
+        "bear": -0.006119, 
+        "neut": 0.000125, 
+        "bull": 0.005435
+    },
+    "KOSPI (Korea)": {
+        "bear": -0.002751, 
+        "neut": -0.001029, 
+        "bull": 0.002401
+    }
 }
 
 # 챌린지 시뮬레이션용 자산 정보
