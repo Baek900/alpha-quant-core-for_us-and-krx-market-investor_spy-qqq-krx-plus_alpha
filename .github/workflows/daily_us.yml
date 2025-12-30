@@ -39,9 +39,9 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install langchain-community langchain-core langchain-google-genai tavily-python supabase pandas yfinance pykrx plotly python-dotenv
 
-    # [Prediction] UTC 12:00 (한국 21:00) 일 때만 실행
+    # [Prediction] UTC 11:00 (한국 20:00) 일 때만 실행
     - name: Run Prediction Logic (Signal)
-      if: github.event.schedule == '0 12 * * 1-5' || github.event_name == 'workflow_dispatch'
+      if: github.event.schedule == '0 11 * * 1-5' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
