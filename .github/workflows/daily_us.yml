@@ -2,9 +2,9 @@ name: Daily Analysis (USA)
 
 on:
   schedule:
-    # 1. Prediction: UTC 12:00 (한국 21:00)
-    # [수정] 기존 코드의 시간 불일치(11시 vs 12시) 해결 -> 12시로 통일
-    - cron: '0 12 * * 1-5'
+    # 1. Prediction: UTC 11:00 (한국 20:00)
+
+    - cron: '0 11 * * 1-5'
     
     # 2. Monitor A: UTC 13:00 (한국 22:00)
     - cron: '0 13 * * *'
