@@ -101,6 +101,7 @@ def convert_utc_to_kst(utc_str):
         return utc_str
 
 def load_latest_analysis(market_name):
+    """라이브 분석용 최신 데이터 로드 (Signal + Reference)"""
     try:
         res_pred = supabase.table(TABLE_PREDS) \
             .select("*") \
@@ -125,6 +126,7 @@ def load_latest_analysis(market_name):
         return None, None, None
 
 def load_all_predictions(market_name):
+    """챌린지용 전체 로그 로드"""
     try:
         response = supabase.table(TABLE_PREDS) \
             .select("*") \
@@ -136,6 +138,7 @@ def load_all_predictions(market_name):
             df = pd.DataFrame(response.data)
             df['created_at'] = pd.to_datetime(df['created_at'])
             df['date_only'] = df['created_at'].dt.date
+            # 하루에 여러 번 실행될 경우 마지막 신호 기준
             df = df.sort_values('created_at').drop_duplicates('date_only', keep='last')
             return df
         return pd.DataFrame()
@@ -163,52 +166,49 @@ def get_strategy_text(market_name, prev_signal, current_signal):
     else:
         return "**Neutral / Uncertain.** Advised to **Hold Cash** and wait for a breakout."
 
-# [핵심 수정: SELL 시 인버스 매수 로직 적용]
+# [핵심 로직] 정수 단위 + 인버스 매매 시뮬레이션 엔진
 def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
     """
     Args:
-        lev_mult: 
-          - 1: 1배 정방향 / -1배 인버스 (Non-Leveraged Strategy)
-          - 3: 3배 레버리지 / -3배 인버스 (Leveraged Strategy)
+        lev_mult: 레버리지 배수 (1=1배/인버스1배, 3=3배/인버스3배)
     """
-    
     dates = sorted(price_df.index)
     
-    # 1. 가격 등락률 안전하게 추출
+    # 1. 등락률 안전 추출 (Series 확인)
     pct_changes_raw = price_df['pct_change']
     if isinstance(pct_changes_raw, pd.DataFrame):
         pct_changes = pct_changes_raw.iloc[:, 0].values
     else:
         pct_changes = pct_changes_raw.values
-    
-    # 2. 가상 자산 가격 생성 (Long: +lev / Short: -lev)
-    sim_long_prices = [100.0]
-    sim_short_prices = [100.0]
-    
-    long_changes = pct_changes * lev_mult       # 정방향 (예: x3)
-    short_changes = pct_changes * (-lev_mult)   # 역방향 (예: -3배 인버스)
-    
-    for i in range(1, len(long_changes)):
-        # Long Asset Price
-        new_long = sim_long_prices[-1] * (1 + long_changes[i])
-        sim_long_prices.append(max(0.01, new_long))
         
-        # Short Asset Price
-        new_short = sim_short_prices[-1] * (1 + short_changes[i])
-        sim_short_prices.append(max(0.01, new_short))
-        
-    sim_long_df = pd.DataFrame({'Close': sim_long_prices}, index=dates)
-    sim_short_df = pd.DataFrame({'Close': sim_short_prices}, index=dates)
+    # 2. 가상 자산 가격 생성 (Long & Short)
+    # Long: 기초지수 * +lev_mult
+    # Short: 기초지수 * -lev_mult (인버스)
+    sim_long = [100.0]
+    sim_short = [100.0]
     
-    # 3. 매매 시뮬레이션
+    long_chg = pct_changes * lev_mult
+    short_chg = pct_changes * (-lev_mult)
+    
+    for i in range(1, len(dates)):
+        l_next = sim_long[-1] * (1 + long_chg[i])
+        s_next = sim_short[-1] * (1 + short_chg[i])
+        sim_long.append(max(0.01, l_next)) # 0이하 방지
+        sim_short.append(max(0.01, s_next))
+        
+    # 날짜별 가격 매핑
+    sim_long_df = pd.DataFrame({'Close': sim_long}, index=dates)
+    sim_short_df = pd.DataFrame({'Close': sim_short}, index=dates)
+    
+    # 3. 매매 시뮬레이션 Loop
     cash = float(init_cap)
     shares_long = 0
     shares_short = 0
-    portfolio_value = []
+    history = []
     
     for i, date in enumerate(dates):
-        curr_long_p = sim_long_df['Close'].iloc[i]
-        curr_short_p = sim_short_df['Close'].iloc[i]
+        p_long = sim_long_df['Close'].iloc[i]
+        p_short = sim_short_df['Close'].iloc[i]
         
         # 신호 확인
         past_logs = df_logs[df_logs['date_only'] < date]
@@ -221,54 +221,40 @@ def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
         if signal == "BUY":
             # 1) Short 포지션 청산 (보유 시)
             if shares_short > 0:
-                cash += shares_short * curr_short_p
+                cash += shares_short * p_short
                 shares_short = 0
             
             # 2) Long 포지션 진입
-            if cash > curr_long_p:
-                if strategy_mode == "Full Switching":
-                    shares_to_buy = int(cash // curr_long_p)
-                    cost = shares_to_buy * curr_long_p
+            if cash > p_long:
+                amt = cash if strategy_mode == "Full Switching" else cash * 0.5
+                n = int(amt // p_long)
+                if n > 0:
+                    cost = n * p_long
                     cash -= cost
-                    shares_long += shares_to_buy
-                elif strategy_mode == "Gradual Accumulation":
-                    # 점진적 매수: 현금의 50% 투입
-                    invest_amt = cash * 0.5
-                    if invest_amt > curr_long_p:
-                        shares_to_buy = int(invest_amt // curr_long_p)
-                        cost = shares_to_buy * curr_long_p
-                        cash -= cost
-                        shares_long += shares_to_buy
-                        
+                    shares_long += n
+                    
         elif signal == "SELL":
             # 1) Long 포지션 청산 (보유 시)
             if shares_long > 0:
-                cash += shares_long * curr_long_p
+                cash += shares_long * p_long
                 shares_long = 0
                 
             # 2) Short(인버스) 포지션 진입
-            if cash > curr_short_p:
-                if strategy_mode == "Full Switching":
-                    shares_to_buy = int(cash // curr_short_p)
-                    cost = shares_to_buy * curr_short_p
+            if cash > p_short:
+                amt = cash if strategy_mode == "Full Switching" else cash * 0.5
+                n = int(amt // p_short)
+                if n > 0:
+                    cost = n * p_short
                     cash -= cost
-                    shares_short += shares_to_buy
-                elif strategy_mode == "Gradual Accumulation":
-                    # 점진적 매수: 현금의 50% 투입
-                    invest_amt = cash * 0.5
-                    if invest_amt > curr_short_p:
-                        shares_to_buy = int(invest_amt // curr_short_p)
-                        cost = shares_to_buy * curr_short_p
-                        cash -= cost
-                        shares_short += shares_to_buy
+                    shares_short += n
         
-        # HOLD 일 때는 현 상태 유지 (Long이든 Short이든)
+        # HOLD: 현 포지션 유지
         
         # 평가금 합산
-        total_val = cash + (shares_long * curr_long_p) + (shares_short * curr_short_p)
-        portfolio_value.append(total_val)
+        eq = cash + (shares_long * p_long) + (shares_short * p_short)
+        history.append(eq)
         
-    return portfolio_value, dates
+    return history, dates
 
 
 # ==============================================================================
@@ -463,7 +449,7 @@ elif st.session_state["current_page"] == "Dashboard":
                         price_df.index = price_df.index.date
                         price_df = price_df[~price_df.index.duplicated(keep='last')] 
 
-                        # [Fix: Ensure Series for benchmark calculation]
+                        # [Fix: Ensure Series for benchmark calculation & tolist error prevention]
                         closes = price_df['Close']
                         if isinstance(closes, pd.DataFrame):
                             closes = closes.iloc[:, 0]
