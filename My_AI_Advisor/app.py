@@ -13,7 +13,7 @@ import os
 # 0. Market Statistics (Historical Daily Avg Return for 5-Day Period)
 # ==============================================================================
 MARKET_STATS = {
-    "S&P 500 (SPY)": {
+    "S&P 500 (SPY)": {
         "bear": -0.005482, 
         "neut": 0.000151, 
         "bull": 0.004402
