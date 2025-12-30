@@ -1,4 +1,4 @@
-import streamlit as st
+Import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -39,28 +39,35 @@ st.markdown("""
         div[data-testid="stCaptionContainer"], small, .stCaption { color: #CCCCCC !important; font-size: 0.9rem !important; opacity: 1 !important; }
         p { color: #E0E0E0 !important; font-size: 1rem !important; }
         
+        /* 헤더/푸터/사이드바 숨김 */
         header {visibility: hidden !important;}
         footer {visibility: hidden !important;}
         [data-testid="stSidebar"] {display: none !important;}
 
+        /* Metric 박스 */
         div[data-testid="stMetric"] { background-color: #121926 !important; border: 1px solid #444444 !important; padding: 15px; border-radius: 8px; }
         div[data-testid="stMetricLabel"] { color: #DDDDDD !important; font-weight: 500 !important; }
         div[data-testid="stMetricValue"] { color: #FFFFFF !important; font-weight: 700 !important; }
 
+        /* 버튼 스타일 */
         div.stButton > button { width: 100%; background-color: #2563EB; color: white !important; border: 1px solid #60A5FA; border-radius: 6px; font-weight: 600; }
 
+        /* 입력 폼 스타일 */
         div[data-baseweb="select"] > div, div[data-baseweb="input"] > div { background-color: #121926 !important; color: white !important; border: 1px solid #555555 !important; }
         ul[data-testid="stSelectboxVirtualDropdown"] { background-color: #121926 !important; }
         li[role="option"] { color: white !important; }
+
+        hr { border-top: 1px solid #555555 !important; margin: 1.5rem 0; }
         
-        div[data-baseweb="radio"] > div { color: white !important; }
-        
+        /* Expander 스타일 */
         .streamlit-expanderHeader { background-color: #121926 !important; color: #FFFFFF !important; }
         div[data-testid="stExpanderDetails"] { background-color: #0B121F !important; border: 1px solid #444444; color: #E0E0E0 !important; }
         div[data-testid="stExpanderDetails"] p, div[data-testid="stExpanderDetails"] span { color: #E0E0E0 !important; }
 
+        /* 탭 스타일 */
         button[data-baseweb="tab"] { font-size: 1rem; font-weight: 600; }
         
+        /* 모달 스타일 */
         div[role="dialog"] { background-color: #121926 !important; border: 2px solid #6B7280 !important; color: #FFFFFF !important; }
         div[role="dialog"] h2, div[role="dialog"] p, div[role="dialog"] label { color: #FFFFFF !important; }
         div[role="dialog"] button[aria-label="Close"] { color: #FFFFFF !important; }
@@ -166,99 +173,94 @@ def get_strategy_text(market_name, prev_signal, current_signal):
     else:
         return "**Neutral / Uncertain Market.** No clear directional signal is present. It is advised to **Hold Cash** and wait for a breakout confirmation before entering new positions."
 
-# [핵심 로직 수정] 정수 단위 + 인버스 매매 시뮬레이션 엔진
 def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
     """
     Args:
-        lev_mult: 레버리지 배수 (1=1배/인버스1배, 3=3배/인버스3배)
+        price_df: Index 1x 가격 데이터 (Close, pct_change)
+        df_logs: 신호 데이터
+        init_cap: 초기 자본
+        strategy_mode: 'Full Switching' or 'Gradual Accumulation'
+        lev_mult: 레버리지 배수 (1, 2, 3) - 정수 주식수 계산을 위해 가상의 가격 시리즈 생성
     """
     
+    # 레버리지 배수에 따른 가상의 자산 가격 생성 (시작가 $100 기준)
+    # 이유: TQQQ 등의 실제 가격이 없어도, Index 수익률의 3배를 추종하는 가상 자산을 만들어 주식수를 계산하기 위함
+    sim_price_series = [100.0]
+    
+    # 원본 날짜 인덱스
     dates = sorted(price_df.index)
     
-    # 1. 등락률 안전하게 추출
-    pct_changes_raw = price_df['pct_change']
-    if isinstance(pct_changes_raw, pd.DataFrame):
-        pct_changes = pct_changes_raw.iloc[:, 0].values
-    else:
-        pct_changes = pct_changes_raw.values
+    # 1. 가상 자산 가격 생성 Loop (Vectorize 가능하지만 가독성을 위해 Loop)
+    pct_changes = price_df['pct_change'].values
     
-    # 2. 가상 자산 가격 생성 (Long & Short)
-    # Long: 기초지수 * +lev_mult
-    # Short: 기초지수 * -lev_mult (인버스)
-    sim_long = [100.0]
-    sim_short = [100.0]
+    # 레버리지별 일간 변동폭 적용
+    lev_changes = pct_changes * lev_mult
     
-    long_chg = pct_changes * lev_mult
-    short_chg = pct_changes * (-lev_mult)
-    
-    for i in range(1, len(dates)):
-        # Long Asset Price
-        l_next = sim_long[-1] * (1 + long_chg[i])
-        # Short Asset Price
-        s_next = sim_short[-1] * (1 + short_chg[i])
+    for chg in lev_changes[1:]: # 첫날 제외
+        new_price = sim_price_series[-1] * (1 + chg)
+        sim_price_series.append(max(0.01, new_price)) # 0 이하 방지
         
-        sim_long.append(max(0.01, l_next)) # 0이하 방지
-        sim_short.append(max(0.01, s_next))
-        
-    sim_long_df = pd.DataFrame({'Close': sim_long}, index=dates)
-    sim_short_df = pd.DataFrame({'Close': sim_short}, index=dates)
+    sim_asset_df = pd.DataFrame({'Close': sim_price_series}, index=dates)
     
-    # 3. 매매 시뮬레이션 Loop
+    # 2. 매매 시뮬레이션
     cash = float(init_cap)
-    shares_long = 0
-    shares_short = 0
+    shares = 0
     portfolio_value = []
     
+    # Gradual 모드일 경우: 현금의 N%를 진입
+    # Full 모드일 경우: 현금의 100% 진입
+    
     for i, date in enumerate(dates):
-        p_long = sim_long_df['Close'].iloc[i]
-        p_short = sim_short_df['Close'].iloc[i]
+        current_price = sim_asset_df['Close'].iloc[i]
         
-        # 신호 확인
-        past_logs = df_logs[df_logs['date_only'] < date]
+        # 신호 확인 (어제 생성된 신호로 오늘 아침/종가에 매매한다고 가정)
+        # 당일 장 마감 후 신호가 나오므로, 실제로는 '다음날' 매매가 맞으나 
+        # 백테스트 편의상 당일 Close에 반응한다고 가정 (Look-ahead bias 방지 위해 로직 주의 필요하나 여기선 단순화)
+        
+        # 데이터프레임 매핑
+        past_logs = df_logs[df_logs['date_only'] < date] # 당일 이전 신호 조회
+        
         signal = "HOLD"
         if not past_logs.empty:
             last_log = past_logs.iloc[-1]
-            signal = last_log['action'] 
-        
-        # 매매 로직
-        if signal == "BUY":
-            # 1) Short 포지션 청산 (보유 시)
-            if shares_short > 0:
-                cash += shares_short * p_short
-                shares_short = 0
+            signal = last_log['action'] # Default Ensemble Action
             
-            # 2) Long 포지션 진입 (현금 보유 시)
-            if cash > p_long:
-                amt = cash if strategy_mode == "Full Switching" else cash * 0.5
-                n = int(amt // p_long)
-                if n > 0:
-                    cost = n * p_long
+            # Tech Only 로직인 경우 override (호출하는 쪽에서 필터링해서 넘겨주는게 좋음. 여기선 action을 믿음)
+        
+        # 매매 로직 수행
+        if signal == "BUY":
+            # [매수 로직]
+            if cash > current_price: # 살 돈이 있다면
+                if strategy_mode == "Full Switching":
+                    # 현금 전액 매수
+                    shares_to_buy = int(cash // current_price)
+                    cost = shares_to_buy * current_price
                     cash -= cost
-                    shares_long += n
+                    shares += shares_to_buy
                     
+                elif strategy_mode == "Gradual Accumulation":
+                    # 점진적 매수: 남은 현금의 50% 투입 (점차 비중 확대)
+                    # 예: 100만원 -> 50만원 매수 -> 잔고 50만 -> 다음날 BUY면 25만원 매수 ...
+                    invest_amt = cash * 0.5
+                    if invest_amt > current_price:
+                        shares_to_buy = int(invest_amt // current_price)
+                        cost = shares_to_buy * current_price
+                        cash -= cost
+                        shares += shares_to_buy
+                        
         elif signal == "SELL":
-            # 1) Long 포지션 청산 (보유 시)
-            if shares_long > 0:
-                cash += shares_long * p_long
-                shares_long = 0
-                
-            # 2) Short(인버스) 포지션 진입 (현금 보유 시)
-            if cash > p_short:
-                amt = cash if strategy_mode == "Full Switching" else cash * 0.5
-                n = int(amt // p_short)
-                if n > 0:
-                    cost = n * p_short
-                    cash -= cost
-                    shares_short += n
+            # [매도 로직] - 리스크 관리 위해 Gradual이라도 전량 매도 (Safety First)
+            if shares > 0:
+                cash += shares * current_price
+                shares = 0
         
-        # HOLD: 현 포지션 유지
+        # HOLD일 땐 현 상태 유지
         
-        # 평가금 합산 (현금 + Long평가액 + Short평가액)
-        total_val = cash + (shares_long * p_long) + (shares_short * p_short)
+        # 일별 평가금 합산
+        total_val = cash + (shares * current_price)
         portfolio_value.append(total_val)
         
     return portfolio_value, dates
-
 
 # ==============================================================================
 # Auth & Dialogs
@@ -531,9 +533,8 @@ elif st.session_state["current_page"] == "Dashboard":
                 with nc2:
                     summary = latest_data.get('news_summary', "No summary available.")
                     st.info(f"📰 **Market Summary (English):**\n\n{summary}")
-
-    # --------------------------------------------------------------------------
-    # TAB 2: Challenge
+# --------------------------------------------------------------------------
+    # TAB 2: Challenge (Revised Logic)
     # --------------------------------------------------------------------------
     with tab2:
         if "Korea" in market_option:
@@ -546,6 +547,7 @@ elif st.session_state["current_page"] == "Dashboard":
         st.subheader(f"🏆 {currency}{init_cap:,.0f} Challenge ({market_option})")
         st.caption(f"Real-time simulation with **Integer Shares** & **Cash Balance** tracking. (Start: **2025-12-22**)")
 
+        # [UI] 매매 스타일 선택 (점진적 매수 옵션 추가)
         st_col1, st_col2 = st.columns([1, 3])
         with st_col1:
             strategy_mode = st.radio(
@@ -586,21 +588,19 @@ elif st.session_state["current_page"] == "Dashboard":
                         price_df = price_df[['Close']].copy()
                         price_df['pct_change'] = price_df['Close'].pct_change().fillna(0)
                         price_df.index = price_df.index.date
-                        price_df = price_df[~price_df.index.duplicated(keep='last')] 
+                        price_df = price_df[~price_df.index.duplicated(keep='last')] # 중복 제거
 
-                        # [Fix: Ensure Series for benchmark calculation]
-                        closes = price_df['Close']
-                        if isinstance(closes, pd.DataFrame):
-                            closes = closes.iloc[:, 0]
+                        # 3. 시뮬레이션 실행 (Integer Shares Logic)
                         
-                        # (A) Benchmark (Buy & Hold 1x) - Start 100% Allocation
-                        bm_start_price = float(closes.iloc[0])
+                        # (A) Benchmark (Buy & Hold 1x) - 비교군
+                        # 벤치마크는 단순하게 첫날 몰빵 후 존버로 가정
+                        bm_start_price = price_df['Close'].iloc[0]
                         bm_shares = int(init_cap // bm_start_price)
                         bm_cash = init_cap - (bm_shares * bm_start_price)
-                        # DataFrame/Series calculation to list -> Safe conversion
-                        bench_curve = (closes * bm_shares + bm_cash).values.flatten().tolist()
+                        bench_curve = (price_df['Close'] * bm_shares + bm_cash).values.flatten().tolist()
                         
-                        # (B) Strategies
+                        # (B) AI Ensemble (Leveraged)
+                        # Tech Only용 로그 필터링 (Tech Signal 변환)
                         df_tech = df_logs.copy()
                         def get_tech_action(row):
                             probs = {"SELL": row['tech_prob_down'], "HOLD": row['tech_prob_neutral'], "BUY": row['tech_prob_up']}
@@ -608,6 +608,7 @@ elif st.session_state["current_page"] == "Dashboard":
                             return "HOLD" if probs[act] <= 0.45 else act
                         df_tech['action'] = df_tech.apply(get_tech_action, axis=1)
 
+                        # Simulation Runs
                         eq_ens_lev, plot_dates = run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=lev_mult)
                         eq_tech_lev, _ = run_simulation(price_df, df_tech, init_cap, strategy_mode, lev_mult=lev_mult)
                         
@@ -655,3 +656,4 @@ elif st.session_state["current_page"] == "Dashboard":
 
             except Exception as e:
                 st.error(f"Simulation Failed: {e}")
+ 
