@@ -64,7 +64,6 @@ def is_market_open(market_type, current_date):
         
     return True
 
-# [수정 포인트 1] 날짜 계산 로직 단순화 (어제로 돌아가는 로직 삭제)
 def get_signal_cutoff(market_option):
     now_utc = datetime.now(ZoneInfo("UTC"))
     
@@ -78,9 +77,7 @@ def get_signal_cutoff(market_option):
         tz = ZoneInfo("US/Eastern")
         market_type = "us"
         local_now = now_utc.astimezone(tz)
-        
         # 미국: 장 시작 전(오전)에 실행하므로 '현재 시각'을 그대로 사용
-        # (과거 날짜로 빼버리면 월요일 아침에 일요일로 인식하는 오류 발생)
         cutoff = local_now 
 
     return tz, cutoff, market_type
@@ -118,7 +115,7 @@ def run_prediction_batch(market_option):
     tz, cutoff_time, market_type = get_signal_cutoff(market_option)
     cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M")
     
-    # 휴장일 체크 (현재 시각 기준 날짜로 체크)
+    # 휴장일 체크
     if not is_market_open(market_type, cutoff_time.date()):
         print("💤 휴장일이므로 예측 프로세스를 건너뜁니다.")
         return
@@ -165,27 +162,50 @@ def run_prediction_batch(market_option):
     news_obj = get_news_analysis(market_option, query, cutoff_str, str(tz))
     if not news_obj: return
 
-    # 4. 앙상블 (Ensemble)
+    # 4. 앙상블 (Ensemble: Balanced Risk Adjustment)
     acc_model = MODEL_ACCURACY.get(market_option, 0.5)
     
-    # [수정 포인트 2] 괄호 및 구문 오류 수정
+    # 4-1. 가중치 계산 (신뢰도 반영)
     w_tech = acc_model / (acc_model + (news_obj.reliability**2 * 0.8))
     w_news = 1 - w_tech
     
-    final_down = (t_down * w_tech) + (max(0, -news_obj.sentiment) * w_news)
-    final_neutral = (t_neutral * w_tech) + ((1 - abs(news_obj.sentiment)) * w_news)
-    final_up = (t_up * w_tech) + (max(0, news_obj.sentiment) * w_news)
+    # 4-2. [핵심 수정] 리스크를 반영한 심리 점수 보정 (Gravity Model)
+    # Risk Score(0~1)가 높을수록 Sentiment를 아래로(Bearish 쪽으로) 끌어당김
+    # 민감도 계수 0.5 적용: 리스크가 MAX(1.0)여도 Sentiment를 -0.5만큼만 낮춤 (상승 모멘텀이 +0.8이면 여전히 +0.3 매수 유지)
     
-    # Normalize
+    risk_gravity = news_obj.risk_score * 0.5
+    adjusted_sentiment = news_obj.sentiment - risk_gravity
+    
+    # 값 범위 클리핑 (-1.0 ~ 1.0)
+    adjusted_sentiment = max(-1.0, min(1.0, adjusted_sentiment))
+    
+    # 보정된 Sentiment를 확률로 변환
+    news_prob_up = max(0, adjusted_sentiment)
+    news_prob_down = max(0, -adjusted_sentiment)
+    
+    # 나머지는 중립 확률로 (합이 1이 안 될 경우를 대비)
+    # 예: adj_sentiment가 0.5면 -> Up 0.5, Down 0 -> Neutral 0.5
+    # 예: adj_sentiment가 -0.3이면 -> Up 0, Down 0.3 -> Neutral 0.7
+    news_prob_neutral = 1.0 - (news_prob_up + news_prob_down)
+    
+    # 4-3. 최종 앙상블 계산
+    final_down = (t_down * w_tech) + (news_prob_down * w_news)
+    final_neutral = (t_neutral * w_tech) + (news_prob_neutral * w_news)
+    final_up = (t_up * w_tech) + (news_prob_up * w_news)
+    
+    # Normalize (부동소수점 오차 보정)
     total = final_down + final_neutral + final_up
     final_down, final_neutral, final_up = final_down/total, final_neutral/total, final_up/total
     
-    # Action
+    # 5. 최종 Action 결정
     prob_map = {"SELL": final_down, "HOLD": final_neutral, "BUY": final_up}
     best_action = max(prob_map, key=prob_map.get)
-    if prob_map[best_action] < 0.45: best_action = "HOLD"
+    
+    # 확신 부족 시 HOLD 처리 (Threshold: 45%)
+    if prob_map[best_action] < 0.45: 
+        best_action = "HOLD"
 
-    # 5. 저장
+    # 6. 저장
     save_prediction(market_option, [t_down, t_neutral, t_up], 
                     [final_down, final_neutral, final_up], 
                     news_obj, w_tech, w_news, best_action)
