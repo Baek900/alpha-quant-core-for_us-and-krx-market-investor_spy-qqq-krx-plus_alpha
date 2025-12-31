@@ -500,9 +500,11 @@ elif st.session_state["current_page"] == "Dashboard":
 
                             fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
 
+                        # [수정] Live Analysis Chart - 글자 흰색 고정 및 인터랙션 제한
                         fig.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
+                            font=dict(color='#FFFFFF'), # 흰색 고정
                             margin=dict(l=0, r=0, t=10, b=0), 
                             xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
                             yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
@@ -510,7 +512,6 @@ elif st.session_state["current_page"] == "Dashboard":
                             showlegend=False,
                             dragmode=False
                         )
-                        
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
 
             except Exception as e: st.error(f"Chart Error: {e}")
@@ -637,11 +638,12 @@ elif st.session_state["current_page"] == "Dashboard":
                             font=dict(color='#FFFFFF'), # 흰색 고정
                             xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
                             yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency, fixedrange=True), 
-                            legend=dict(orientation="h", y=1.1), 
+                            legend=dict(orientation="h", y=1.1, font=dict(color='#FFFFFF')), # 범례도 흰색 고정
                             height=400,
                             dragmode=False
                         )
-                        st.plotly_chart(fig_lev, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
+                        # [핵심] theme=None 추가하여 Streamlit 테마 무시
+                        st.plotly_chart(fig_lev, use_container_width=True, theme=None, config={'displayModeBar': False, 'scrollZoom': False})
                         
                         m1, m2, m3 = st.columns(3)
                         m1.metric("AI Ensemble", f"{currency}{eq_ens_lev[-1]:,.0f}", f"{ret_el:+.2f}%")
@@ -667,11 +669,12 @@ elif st.session_state["current_page"] == "Dashboard":
                             font=dict(color='#FFFFFF'), # 흰색 고정
                             xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
                             yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency, fixedrange=True), 
-                            legend=dict(orientation="h", y=1.1), 
+                            legend=dict(orientation="h", y=1.1, font=dict(color='#FFFFFF')), # 범례도 흰색 고정
                             height=400,
                             dragmode=False
                         )
-                        st.plotly_chart(fig_no, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
+                        # [핵심] theme=None 추가하여 Streamlit 테마 무시
+                        st.plotly_chart(fig_no, use_container_width=True, theme=None, config={'displayModeBar': False, 'scrollZoom': False})
                         
                         mm1, mm2, mm3 = st.columns(3)
                         mm1.metric("AI Ensemble (1x)", f"{currency}{eq_ens_1x[-1]:,.0f}", f"{ret_e1:+.2f}%")
