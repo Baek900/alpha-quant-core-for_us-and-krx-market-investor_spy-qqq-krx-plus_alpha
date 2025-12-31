@@ -500,19 +500,19 @@ elif st.session_state["current_page"] == "Dashboard":
 
                             fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
 
-                        # [수정] Live Analysis Chart - 글자 흰색 고정 및 인터랙션 제한
+                        # [수정] Live Analysis Chart - 글자 흰색 고정 및 인터랙션 제한 (재활성화)
                         fig.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
                             font=dict(color='#FFFFFF'), # 흰색 고정
                             margin=dict(l=0, r=0, t=10, b=0), 
-                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
-                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
+                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), 
+                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), 
                             height=350, 
                             showlegend=False,
-                            dragmode=False
+                            # dragmode=False # Live 차트는 인터랙션 유지
                         )
-                        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
+                        st.plotly_chart(fig, use_container_width=True, theme=None, config={'displayModeBar': False, 'scrollZoom': False})
 
             except Exception as e: st.error(f"Chart Error: {e}")
                 
@@ -631,19 +631,19 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=eq_tech_lev, mode='lines', name=f'Tech ({lev_mult}x) {ret_tl:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
                         
-                        # [수정] 폰트 색상 흰색 고정 및 인터랙션 제거
+                        # [수정] 폰트 색상 흰색 고정 및 인터랙션 '해제' (Zoom/Pan 가능)
                         fig_lev.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
                             font=dict(color='#FFFFFF'), # 흰색 고정
-                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
-                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency, fixedrange=True), 
+                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), # fixedrange 제거
+                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency), # fixedrange 제거
                             legend=dict(orientation="h", y=1.1, font=dict(color='#FFFFFF')), # 범례도 흰색 고정
                             height=400,
-                            dragmode=False
+                            # dragmode=False # 제거
                         )
-                        # [핵심] theme=None 추가하여 Streamlit 테마 무시
-                        st.plotly_chart(fig_lev, use_container_width=True, theme=None, config={'displayModeBar': False, 'scrollZoom': False})
+                        # [핵심] theme=None 추가 (흰색 강제 적용) + config에서 scrollZoom 제한 안 함
+                        st.plotly_chart(fig_lev, use_container_width=True, theme=None)
                         
                         m1, m2, m3 = st.columns(3)
                         m1.metric("AI Ensemble", f"{currency}{eq_ens_lev[-1]:,.0f}", f"{ret_el:+.2f}%")
@@ -662,19 +662,18 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=eq_tech_1x, mode='lines', name=f'Tech (1x) {ret_t1:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
                         
-                        # [수정] 폰트 색상 흰색 고정 및 인터랙션 제거
+                        # [수정] 폰트 색상 흰색 고정 및 인터랙션 '해제' (Zoom/Pan 가능)
                         fig_no.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
                             font=dict(color='#FFFFFF'), # 흰색 고정
-                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
-                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency, fixedrange=True), 
+                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF'), # fixedrange 제거
+                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency), # fixedrange 제거
                             legend=dict(orientation="h", y=1.1, font=dict(color='#FFFFFF')), # 범례도 흰색 고정
                             height=400,
-                            dragmode=False
+                            # dragmode=False # 제거
                         )
-                        # [핵심] theme=None 추가하여 Streamlit 테마 무시
-                        st.plotly_chart(fig_no, use_container_width=True, theme=None, config={'displayModeBar': False, 'scrollZoom': False})
+                        st.plotly_chart(fig_no, use_container_width=True, theme=None)
                         
                         mm1, mm2, mm3 = st.columns(3)
                         mm1.metric("AI Ensemble (1x)", f"{currency}{eq_ens_1x[-1]:,.0f}", f"{ret_e1:+.2f}%")
