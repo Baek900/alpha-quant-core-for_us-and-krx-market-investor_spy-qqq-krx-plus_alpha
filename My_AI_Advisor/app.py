@@ -630,13 +630,13 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=eq_tech_lev, mode='lines', name=f'Tech ({lev_mult}x) {ret_tl:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_lev.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
                         
-                        # [수정] 폰트 색상 은색 고정 및 인터랙션 제거
+                        # [수정] 폰트 색상 흰색 고정 및 인터랙션 제거
                         fig_lev.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
-                            font=dict(color='#E0E0E0'),
-                            xaxis=dict(showgrid=True, gridcolor='#333', fixedrange=True), 
-                            yaxis=dict(showgrid=True, gridcolor='#333', tickprefix=currency, fixedrange=True), 
+                            font=dict(color='#FFFFFF'), # 흰색 고정
+                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
+                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency, fixedrange=True), 
                             legend=dict(orientation="h", y=1.1), 
                             height=400,
                             dragmode=False
@@ -660,13 +660,13 @@ elif st.session_state["current_page"] == "Dashboard":
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=eq_tech_1x, mode='lines', name=f'Tech (1x) {ret_t1:+.1f}%', line=dict(color='#FEB019', width=2, dash='dash')))
                         fig_no.add_trace(go.Scatter(x=plot_dates, y=bench_curve, mode='lines', name=f'{bm_name} {ret_b1:+.1f}%', line=dict(color='#FFFFFF', width=1, dash='dot')))
                         
-                        # [수정] 폰트 색상 은색 고정 및 인터랙션 제거
+                        # [수정] 폰트 색상 흰색 고정 및 인터랙션 제거
                         fig_no.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
-                            font=dict(color='#E0E0E0'),
-                            xaxis=dict(showgrid=True, gridcolor='#333', fixedrange=True), 
-                            yaxis=dict(showgrid=True, gridcolor='#333', tickprefix=currency, fixedrange=True), 
+                            font=dict(color='#FFFFFF'), # 흰색 고정
+                            xaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
+                            yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', tickprefix=currency, fixedrange=True), 
                             legend=dict(orientation="h", y=1.1), 
                             height=400,
                             dragmode=False
