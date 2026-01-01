@@ -393,25 +393,20 @@ elif st.session_state["current_page"] == "Dashboard":
                 m2.metric("Bearish", f"{f_down*100:.1f}%", delta=f"{f_down-t_down:.1%}", delta_color="inverse", help=f"🤖 Tech Model: {t_down*100:.1f}%\n📰 News Impact: {f_down-t_down:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_down*100:.1f}%")
                 m3.metric("Neutral", f"{f_neutral*100:.1f}%", delta=f"{f_neutral-t_neutral:.1%}", delta_color="off", help=f"🤖 Tech Model: {t_neutral*100:.1f}%\n📰 News Impact: {f_neutral-t_neutral:+.1%}\n━━━━━━━━━━━━━━━\n🎯 Final: {f_neutral*100:.1f}%")
                 
-               with st.expander("📊 View Technical Model Baseline", expanded=False):
+                # [수정된 부분: Indentation 수정 완료]
+                with st.expander("📊 View Technical Model Baseline", expanded=False):
                     st.caption("Raw probabilities from TMFG-LSTM model (Before News adjustment)")
                     
-                    # [수정] 화면을 좌측(확률 정보)과 우측(신호)으로 3:1 비율로 분할
                     c_probs, c_sig = st.columns([3, 1])
                     
                     with c_probs:
-                        # 좌측: 확률 3개를 가로로 나열
                         t1, t2, t3 = st.columns(3)
-                        # 공간 절약을 위해 'Tech' 접두어 생략 (상단 헤더에 명시됨)
                         t1.markdown(f"**Bull**<br>`{t_up*100:.1f}%`", unsafe_allow_html=True)
                         t2.markdown(f"**Bear**<br>`{t_down*100:.1f}%`", unsafe_allow_html=True)
                         t3.markdown(f"**Neut**<br>`{t_neutral*100:.1f}%`", unsafe_allow_html=True)
                     
                     with c_sig:
-                        # 우측: Technical Signal을 크고 굵게 표시
                         tech_act = latest_data.get('tech_action', 'HOLD')
-                        
-                        # 시각적 구분을 위한 CSS 스타일링 (중앙 정렬, 폰트 키움)
                         st.markdown(f"""
                             <div style="text-align: center; border-left: 1px solid #444; padding-left: 10px;">
                                 <span style="font-size: 0.8rem; color: #AAAAAA;">Tech Signal</span><br>
@@ -437,7 +432,6 @@ elif st.session_state["current_page"] == "Dashboard":
                     st.write("")
                 
                 if st.button("Refresh Analysis"): st.rerun()
-
 
             else:
                 st.warning("Data syncing...")
@@ -518,7 +512,7 @@ elif st.session_state["current_page"] == "Dashboard":
                             yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
                             height=350, 
                             showlegend=False,
-                            # dragmode=False # Live 차트는 인터랙션 유지
+                            dragmode=False # Live 차트도 인터랙션 막음 (일관성 위해)
                         )
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
 
