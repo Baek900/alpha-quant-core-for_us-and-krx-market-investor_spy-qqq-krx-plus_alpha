@@ -82,7 +82,8 @@ def get_signal_cutoff(market_option):
 
     return tz, cutoff, market_type
 
-def save_prediction(market, tech_probs, fin_probs, news_data, w_tech, w_news, action):
+# [수정] tech_action 인자 추가 및 데이터 저장 로직 반영
+def save_prediction(market, tech_probs, fin_probs, news_data, w_tech, w_news, action, tech_action):
     if not supabase: return
     try:
         data = {
@@ -101,7 +102,8 @@ def save_prediction(market, tech_probs, fin_probs, news_data, w_tech, w_news, ac
             "news_score": int((news_data.sentiment + 1) * 50),
             "news_risk_score": news_data.risk_score,
             "news_metadata": news_data.dict(),
-            "action": action
+            "action": action,
+            "tech_action": tech_action  # [NEW] 기술적 모델 단독 신호 저장
         }
         supabase.table(PREDICTION_TABLE).insert(data).execute()
         print(f"✅ [Prediction] 저장 완료 ({PREDICTION_TABLE}): {market}")
@@ -197,7 +199,7 @@ def run_prediction_batch(market_option):
     total = final_down + final_neutral + final_up
     final_down, final_neutral, final_up = final_down/total, final_neutral/total, final_up/total
     
-    # 5. 최종 Action 결정
+    # 5. 최종 Action 결정 (Ensemble)
     prob_map = {"SELL": final_down, "HOLD": final_neutral, "BUY": final_up}
     best_action = max(prob_map, key=prob_map.get)
     
@@ -205,10 +207,18 @@ def run_prediction_batch(market_option):
     if prob_map[best_action] < 0.45: 
         best_action = "HOLD"
 
-    # 6. 저장
+    # [NEW] 5-1. 기술적 모델 단독 Action 결정 (Tech Only)
+    # 0.45를 넘은 확률 중 가장 높은 값을 신호로 보고, 없으면 HOLD
+    tech_map = {"SELL": t_down, "HOLD": t_neutral, "BUY": t_up}
+    best_tech_action = max(tech_map, key=tech_map.get)
+    
+    if tech_map[best_tech_action] < 0.45:
+        best_tech_action = "HOLD"
+
+    # 6. 저장 (tech_action 추가 전달)
     save_prediction(market_option, [t_down, t_neutral, t_up], 
                     [final_down, final_neutral, final_up], 
-                    news_obj, w_tech, w_news, best_action)
+                    news_obj, w_tech, w_news, best_action, best_tech_action)
 
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "us"
