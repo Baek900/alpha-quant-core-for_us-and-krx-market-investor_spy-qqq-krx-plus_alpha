@@ -399,6 +399,10 @@ elif st.session_state["current_page"] == "Dashboard":
                     t1.markdown(f"**Tech Bull:** `{t_up*100:.1f}%`")
                     t2.markdown(f"**Tech Bear:** `{t_down*100:.1f}%`")
                     t3.markdown(f"**Tech Neut:** `{t_neutral*100:.1f}%`")
+                    
+                    # [NEW] View Technical Signal
+                    tech_act = latest_data.get('tech_action', 'HOLD')
+                    st.markdown(f"**Technical Signal:** `{tech_act}`")
 
                 decision = latest_data.get('action', "HOLD")
                 d_color = "#CCCCCC"
@@ -500,7 +504,7 @@ elif st.session_state["current_page"] == "Dashboard":
 
                             fig.add_trace(go.Scatter(x=future_dates, y=future_prices, mode='lines', name='Forecast', line=dict(color=trend_color, width=4, dash='dot'))) 
 
-                        # [수정] Live Analysis Chart - 글자 흰색 고정 및 인터랙션 제한
+                        # [수정] Live Analysis Chart - 글자 흰색 고정 및 인터랙션 제한 (재활성화)
                         fig.update_layout(
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)', 
@@ -510,7 +514,7 @@ elif st.session_state["current_page"] == "Dashboard":
                             yaxis=dict(showgrid=True, gridcolor='#333', color='#FFFFFF', fixedrange=True), 
                             height=350, 
                             showlegend=False,
-                            dragmode=False
+                            # dragmode=False # Live 차트는 인터랙션 유지
                         )
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
 
@@ -606,11 +610,14 @@ elif st.session_state["current_page"] == "Dashboard":
                         
                         # (B) Strategies
                         df_tech = df_logs.copy()
-                        def get_tech_action(row):
-                            probs = {"SELL": row['tech_prob_down'], "HOLD": row['tech_prob_neutral'], "BUY": row['tech_prob_up']}
-                            act = max(probs, key=probs.get)
-                            return "HOLD" if probs[act] <= 0.45 else act
-                        df_tech['action'] = df_tech.apply(get_tech_action, axis=1)
+                        
+                        # [MODIFIED] Tech Only 전략 로직 변경: DB의 'tech_action' 사용
+                        if 'tech_action' in df_tech.columns:
+                            # DB에 tech_action이 있으면 그대로 사용 (없으면 HOLD 처리)
+                            df_tech['action'] = df_tech['tech_action'].fillna('HOLD')
+                        else:
+                            # 만약 tech_action 컬럼이 없다면(구버전 데이터 등) HOLD로 처리
+                            df_tech['action'] = 'HOLD'
 
                         eq_ens_lev, plot_dates = run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=lev_mult)
                         eq_tech_lev, _ = run_simulation(price_df, df_tech, init_cap, strategy_mode, lev_mult=lev_mult)
