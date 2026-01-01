@@ -438,17 +438,6 @@ elif st.session_state["current_page"] == "Dashboard":
                 
                 if st.button("Refresh Analysis"): st.rerun()
 
-                # [Reference News Section]
-                st.write("")
-                st.markdown("##### 📡 Market Monitoring (Reference)")
-                if ref_data:
-                    ref_time = convert_utc_to_kst(ref_data['created_at'])
-                    with st.expander(f"Last Update: {ref_time}", expanded=True):
-                        st.markdown(f"**Summary:** {ref_data.get('reference_summary', '-')}")
-                        st.caption(f"**Risk Analysis:** {ref_data.get('detected_risks', '-')}")
-                        st.markdown(f"**Risk Level:** `{ref_data.get('risk_level', 0.0)}`")
-                else:
-                    st.info("No monitoring data available.")
 
             else:
                 st.warning("Data syncing...")
@@ -554,6 +543,18 @@ elif st.session_state["current_page"] == "Dashboard":
                 with nc2:
                     summary = latest_data.get('news_summary', "No summary available.")
                     st.info(f"📰 **Market Summary (English):**\n\n{summary}")
+                    
+                # [Reference News Section]
+                st.write("")
+                st.markdown("##### 📡 Market Monitoring (Reference)")
+                if ref_data:
+                    ref_time = convert_utc_to_kst(ref_data['created_at'])
+                    with st.expander(f"Last Update: {ref_time}", expanded=True):
+                        st.markdown(f"**Summary:** {ref_data.get('reference_summary', '-')}")
+                        st.caption(f"**Risk Analysis:** {ref_data.get('detected_risks', '-')}")
+                        st.markdown(f"**Risk Level:** `{ref_data.get('risk_level', 0.0)}`")
+                else:
+                    st.info("No monitoring data available.")
 
     # --------------------------------------------------------------------------
     # TAB 2: Challenge
