@@ -32,12 +32,12 @@ PREDICTION_TABLE = "prediction_logs_test" if IS_TEST_MODE else "prediction_logs"
 # 3. 시장별 설정 (모델 파일명 직접 지정)
 MARKET_CONFIG = {
     "NASDAQ (QQQ)": {
-        "is_kr": False, "seq_len": 14, "num_assets": 10, "hidden": 128, "threshold": 0.3,
+        "is_kr": False, "seq_len": 14, "num_assets": 10, "hidden": 128, "threshold": 0.33,
         "assets": ['XLK','XLV','XLF','XLY','XLC','XLI','XLP','XLE','XLB','XLRE'],
         "model_file": "us_sector_ai_model_qqq_kmeans_5class_v2.pth"
     },
     "S&P 500 (SPY)": {
-        "is_kr": False, "seq_len": 14, "num_assets": 10, "hidden": 128, "threshold": 0.3,
+        "is_kr": False, "seq_len": 14, "num_assets": 10, "hidden": 128, "threshold": 0.33,
         "assets": ['XLK','XLV','XLF','XLY','XLC','XLI','XLP','XLE','XLB','XLRE'],
         "model_file": "us_sector_ai_model_spy_kmeans_5class_v1.pth"
     },
