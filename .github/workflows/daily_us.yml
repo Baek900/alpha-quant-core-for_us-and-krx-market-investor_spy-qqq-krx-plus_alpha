@@ -37,7 +37,7 @@ jobs:
       run: |
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install langchain-community langchain-core langchain-google-genai tavily-python supabase pandas yfinance pykrx plotly python-dotenv
+        pip install langchain-community langchain-core langchain-google-genai tavily-python supabase pandas yfinance pykrx plotly python-dotenv lightgbm
 
     # [Prediction] UTC 11:00 (한국 20:00) 일 때만 실행
     - name: Run Prediction Logic (Signal)
