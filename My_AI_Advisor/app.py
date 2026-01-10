@@ -368,7 +368,7 @@ elif st.session_state["current_page"] == "Dashboard":
             
         latest_data, prev_data, ref_data = load_latest_analysis(market_option)
 
-        col1, col2 = st.columns([1, 1.5])
+        col1, col2 = st.columns([1.2, 1.5])
 
         # [LEFT] Signal & Reference News
         with col1:
@@ -383,65 +383,114 @@ elif st.session_state["current_page"] == "Dashboard":
                 t_up = latest_data.get('tech_prob_up', 0.0)
                 t_down = latest_data.get('tech_prob_down', 0.0)
                 t_neutral = latest_data.get('tech_prob_neutral', 0.0)
+                
                 tech_act = latest_data.get('tech_action', 'HOLD')
+                decision = latest_data.get('action', "HOLD")
 
                 st.markdown(f"**Analysis Time:** {date_str}")
                 
                 # ==========================================================
-                # 1. [MAIN] Technical Model Baseline (기존 하단에서 위로 이동)
+                # 1. [MAIN] Technical Model Baseline
                 # ==========================================================
                 st.markdown("##### 🤖 Technical Model Baseline")
-                st.caption("Raw AI probabilities from TMFG-LSTM model (Primary Technical Signal)")
+                # 가로 폭이 좁을 때 캡션이 줄바꿈되는 것을 방지하기 위해 일반 텍스트 사용 고려
+                st.markdown(f"<p style='font-size: 0.85rem; color: #AAAAAA; margin-bottom: 0.5rem;'>Raw AI probabilities from TMFG-LSTM model (Primary Technical Signal)</p>", unsafe_allow_html=True)
                 
+                # Metric 간격을 최적화하기 위해 컬럼 배치
                 tm1, tm2, tm3 = st.columns(3)
-                tm1.metric("Tech Bull", f"{t_up*100:.1f}%")
-                tm2.metric("Tech Bear", f"{t_down*100:.1f}%")
-                tm3.metric("Tech Neut", f"{t_neutral*100:.1f}%")
+                with tm1: st.metric("Tech Bull", f"{t_up*100:.1f}%")
+                with tm2: st.metric("Tech Bear", f"{t_down*100:.1f}%")
+                with tm3: st.metric("Tech Neut", f"{t_neutral*100:.1f}%")
                 
-                # 기술 모델의 단독 시그널 표시
+                # Signal Flow 추가 (이전 요청 사항 반영)
+                prev_tech_act = prev_data.get('tech_action', 'HOLD') if prev_data else "HOLD"
+                
+                # 기술 모델 단독 시그널 하이라이트 박스 (박스 크기 최적화)
                 t_color = "#FFFFFF"
                 if tech_act == "BUY": t_color = "#00E396"
                 elif tech_act == "SELL": t_color = "#FF4560"
                 
                 st.markdown(f"""
-                    <div style="margin-bottom: 20px; padding: 10px; background-color: #1A2333; border-radius: 5px; border-left: 5px solid {t_color};">
-                        <span style="font-size: 0.85rem; color: #AAAAAA;">Technical Signal Only:</span>
-                        <span style="font-size: 1.1rem; font-weight: 700; color: {t_color}; margin-left: 10px;">{tech_act}</span>
+                    <div style="margin-bottom: 20px; padding: 12px; background-color: #1A2333; border-radius: 5px; border-left: 5px solid {t_color};">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span style="font-size: 0.85rem; color: #AAAAAA;">Technical Signal:</span>
+                                <span style="font-size: 1.1rem; font-weight: 700; color: {t_color}; margin-left: 8px;">{tech_act}</span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: #CCCCCC;">
+                                Flow: <code style="color:#FFF;">{prev_tech_act}</code> ➜ <b style="color:{t_color};">{tech_act}</b>
+                            </div>
+                        </div>
                     </div>
                 """, unsafe_allow_html=True)
 
                 # ==========================================================
-                # 2. [EXPANDER] Final Ensemble Probabilities (기존 메인에서 아래로 이동)
+                # 2. [EXPANDER] News-Adjusted Ensemble & Final Signal
                 # ==========================================================
                 with st.expander("🎯 View News-Adjusted Ensemble (Consensus)", expanded=False):
                     st.caption("Final probabilities after incorporating News Sentiment & Macro Gravity adjustment.")
                     
                     m1, m2, m3 = st.columns(3)
-                    # 델타(delta)값은 기술 모델 대비 뉴스 영향력을 보여줍니다.
                     m1.metric("Final Bull", f"{f_up*100:.1f}%", delta=f"{(f_up-t_up)*100:+.1f}%")
                     m2.metric("Final Bear", f"{f_down*100:.1f}%", delta=f"{(f_down-t_down)*100:+.1f}%", delta_color="inverse")
                     m3.metric("Final Neut", f"{f_neutral*100:.1f}%", delta=f"{(f_neutral-t_neutral)*100:+.1f}%", delta_color="off")
+                    
+                    # [이동됨] 최종 Consensus Signal 표시
+                    d_color = "#CCCCCC"
+                    if decision == "BUY": d_color = "#00E396"
+                    elif decision == "SELL": d_color = "#FF4560"
+                    
+                    st.markdown(f"""
+                        <div style="margin-top: 15px; padding: 10px; border: 1px solid {d_color}; border-radius: 5px; background-color: #0B121F; text-align: center;">
+                            <span style="font-size: 0.8rem; color: #AAAAAA;">Consensus Result:</span>
+                            <span style="font-size: 1.5rem; font-weight: 900; color: {d_color}; margin-left: 10px;">{decision}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                # 3. 최종 결정 박스 (Ensemble Result)
-                decision = latest_data.get('action', "HOLD")
-                d_color = "#CCCCCC"
-                if decision == "BUY": d_color = "#00E396"
-                elif decision == "SELL": d_color = "#FF4560"
+                # ==========================================================
+                # 3. [STRATEGY] Divided Details (Tech vs Consensus)
+                # ==========================================================
+                st.markdown("##### 📝 Strategy Execution Details")
                 
-                st.markdown(f"""<div style='margin-top: 10px; padding: 20px; border: 3px solid {d_color}; border-radius: 8px; background-color: #121926; text-align: center;'><span style='color: #FFFFFF; font-size: 1.1rem; font-weight: bold;'>Consensus Signal (Final)</span><br><span style='color: {d_color}; font-size: 2.5rem; font-weight: 900;'>{decision}</span></div>""", unsafe_allow_html=True)
+                prev_signal = prev_data['action'] if prev_data else "HOLD"
                 
-                # 전략 상세 (Expander)
-                prev_signal = prev_data['action'] if prev_data else None
-                strategy_text = get_strategy_text(market_option, prev_signal, decision)
-
-                with st.expander("View Strategy Details", expanded=True):
-                    st.write("") 
-                    st.markdown(f"**Signal Change:** `{prev_signal}` ➜ **`{decision}`**")
-                    st.markdown(f"""<div style="margin-top: 10px; margin-bottom: 15px; padding: 15px; background-color: #000000; border: 1px solid #7C3AED; border-radius: 4px;"><p style="color: #FFFFFF; font-size: 1rem; line-height: 1.6; margin: 0; font-weight: 600;">{strategy_text}</p></div>""", unsafe_allow_html=True)
-                    st.markdown(f"""<div style='font-size: 0.9rem; color: #CCCCCC; margin-top: 10px; border-top: 2px solid #555; padding-top: 10px; font-weight: 500;'>* 📈 <b>Long Target:</b> {LEV_LONG}<br>* 📉 <b>Short Target:</b> {LEV_SHORT}</div>""", unsafe_allow_html=True)
+               # (1) Tech Only Strategy 부분
+                with st.container():
+                    st.markdown("---")
+                    st.markdown("**[A] Technical Strategy (Baseline)**")
+                    
+                    # Get previous tech action for signal flow
+                    prev_tech_act = prev_data.get('tech_action', 'HOLD') if prev_data else "HOLD"
+                    st.markdown(f"**Tech Signal Flow:** `{prev_tech_act}` ➜ **`{tech_act}`**")
+                    
+                    tech_strat_text = get_strategy_text(market_option, prev_tech_act, tech_act)
+                    
+                    # Applied the same black background and purple border styling as section [B]
+                    st.markdown(f"""
+                        <div style="padding: 12px; background-color: #000000; border: 1px solid #7C3AED; border-radius: 4px; font-size: 1rem; font-weight: 600; color: #FFFFFF;">
+                            {tech_strat_text}
+                        </div>
+                    """, unsafe_allow_html=True)
+               # (2) Consensus Signal 부분
+                with st.container():
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("**[B] Consensus Strategy (Final Decision)**")
+                    
+                    # This uses the final ensemble actions (action column)
+                    st.markdown(f"**Consensus Flow:** `{prev_signal}` ➜ **`{decision}`**")
+                    
+                    final_strat_text = get_strategy_text(market_option, prev_signal, decision)
+                    st.markdown(f"""
+                        <div style="padding: 12px; background-color: #000000; border: 1px solid #7C3AED; border-radius: 4px; font-size: 1rem; font-weight: 600; color: #FFFFFF;">
+                            {final_strat_text}
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Strategy Target Info
+                    st.markdown(f"""<div style='font-size: 0.85rem; color: #AAAAAA; margin-top: 8px;'>* 📈 Target: {LEV_LONG} | 📉 Short: {LEV_SHORT}</div>""", unsafe_allow_html=True)   
                 
+                st.write("")
                 if st.button("Refresh Analysis"): st.rerun()
-
 
             else:
                 st.warning("Data syncing...")
