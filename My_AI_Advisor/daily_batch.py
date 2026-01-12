@@ -73,7 +73,7 @@ def get_market_info(market_option):
         tz, m_type = ZoneInfo("US/Eastern"), "us"
         local_now = now_utc.astimezone(tz)
         if local_now.hour < 12:
-            cutoff = (local_now - timedelta(days=1)).replace(hour=20, minute=0, second=0)
+            cutoff = (local_now - timedelta(days=0)).replace(hour=20, minute=0, second=0)
         else:
             cutoff = local_now.replace(hour=20, minute=0, second=0)
     return tz, cutoff, m_type
