@@ -152,7 +152,10 @@ def run_prediction_v2(market_option):
     
     tech_map = {"BUY": t_up, "SELL": t_down, "HOLD": t_neutral}
     tech_action = max(tech_map, key=tech_map.get)
-    if np.max(tech_probs) < cfg["threshold"]: tech_action = "HOLD"
+    # 3진 변환된 확률 중 선택된 액션의 확률값이 임계치를 넘는지 확인
+    if tech_map[tech_action] < cfg["threshold"]:
+        tech_action = "HOLD"
+
 
     # 5. 뉴스 에이전트 분석
     news_res = get_news_analysis(market_option, f"latest {market_option} news", str(cutoff_time), str(tz))
@@ -185,8 +188,10 @@ def run_prediction_v2(market_option):
     prob_map = {"BUY": f_up, "SELL": f_down, "HOLD": f_neutral}
     best_action = max(prob_map, key=prob_map.get)
 
-    if np.max(tech_probs) < cfg["threshold"]:
+    # 최종 결정된 액션의 결합 확률(prob_map[best_action])이 임계값을 넘는지 확인
+    if prob_map[best_action] < cfg["threshold"]:
         best_action = "HOLD"
+
 
     # 7. 저장
     save_prediction(market_option, tech_probs, [f_down, f_neutral, f_up], news_res, best_action, tech_action, (w_tech, w_news))
