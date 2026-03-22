@@ -214,7 +214,7 @@ def run_simulation(price_df, df_logs, init_cap, strategy_mode, lev_mult=1):
         p_short = sim_short_df['Close'].iloc[i]
         
         # 신호 확인
-        past_logs = df_logs[df_logs['date_only'] < date]
+        past_logs = df_logs[df_logs['date_only'] <= date]
         signal = "HOLD"
         if not past_logs.empty:
             last_log = past_logs.iloc[-1]
