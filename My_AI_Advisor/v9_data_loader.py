@@ -7,6 +7,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import torch
 import numpy as np
+import warnings
+warnings.filterwarnings('ignore') # 쓸데없는 yfinance 경고 숨김
 
 START_DATE = '2000-01-01'
 
@@ -35,8 +37,10 @@ def fetch_v9_inference_data():
         except Exception as e: print(f"⚠️ YF {n} 에러: {e}")
 
     final_df = pd.concat(series_dict.values(), axis=1).sort_index()
-    final_df.fillna(method='ffill', inplace=True)
-    final_df.fillna(method='bfill', inplace=True)
+    
+    # [수정됨] 최신 Pandas 문법 적용 (경고창 제거)
+    final_df.ffill(inplace=True)
+    final_df.bfill(inplace=True)
     
     macro = pd.DataFrame(index=final_df.index)
     cols = final_df.columns
@@ -57,27 +61,28 @@ def fetch_v9_inference_data():
     pca = PCA(n_components=6)
     latent = pca.fit_transform(scaled)
     
-    # 최신(오늘) 매크로 텐서 반환 [1, 6]
-    macro_tensor = torch.FloatTensor(latent[-1:]).unsqueeze(0)
+    # [수정됨] 텐서 차원 붕괴 해결 (unsqueeze(0) 제거 -> 완벽한 [1, 6] 차원)
+    macro_tensor = torch.FloatTensor(latent[-1:])
     
-    # 3. 10 Sectors Data Fetch (최근 150일치만 가져와서 MTF 분할)
+    # 3. 10 Sectors Data Fetch
     sectors = ['XLK', 'XLV', 'XLF', 'XLY', 'XLC', 'XLI', 'XLP', 'XLE', 'XLB', 'XLRE']
     sec_start = (datetime.datetime.today() - datetime.timedelta(days=150)).strftime('%Y-%m-%d')
     sec_data = yf.download(sectors, start=sec_start, end=end_date, group_by='ticker', progress=False, auto_adjust=True)
     
     d_list, w_list, m_list = [], [], []
     for sec in sectors:
-        df = sec_data[sec]
-        # Feature: Close, Vol, Change
+        # [수정됨] SettingWithCopyWarning 제거를 위한 .copy() 사용
+        df = sec_data[sec].copy()
         df['Change'] = df['Close'].pct_change()
-        df.fillna(0, inplace=True)
+        df = df.fillna(0)
         feats = df[['Close', 'Volume', 'Change']]
         
         d_list.append(feats.tail(20).values)
-        w_list.append(feats.resample('W-FRI').last().fillna(method='ffill').tail(20).values)
-        m_list.append(feats.resample('BM').last().fillna(method='ffill').tail(20).values)
+        # [수정됨] 최신 pandas 리샘플링 문법 (BM -> BME) 및 ffill 적용
+        w_list.append(feats.resample('W-FRI').last().ffill().tail(20).values)
+        m_list.append(feats.resample('BME').last().ffill().tail(20).values)
         
-    d_tensor = torch.FloatTensor(np.array(d_list)).unsqueeze(0) # [1, 10, 20, 3]
+    d_tensor = torch.FloatTensor(np.array(d_list)).unsqueeze(0) 
     w_tensor = torch.FloatTensor(np.array(w_list)).unsqueeze(0)
     m_tensor = torch.FloatTensor(np.array(m_list)).unsqueeze(0)
     
