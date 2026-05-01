@@ -181,7 +181,7 @@ def run_daily_batch():
         })
     
     # DB Insert 실행
-    supabase.table('v13_daily_log').insert(insert_data).execute()
+    supabase.table('v13_daily_log').upsert(insert_data).execute()
     print("✅ [성공] V13.8 배치 작업이 완벽하게 종료되었습니다.")
 
 if __name__ == "__main__":
