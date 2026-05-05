@@ -143,28 +143,43 @@ def run_daily_batch():
                         state['days_held'] = 0
                         state['entry_p'] = cur_price
                         state['high_p'] = cur_price
-
-        # ⚖️ 타겟 비중(Weight) 리밸런싱
+# ⚖️ 타겟 비중(Weight) 리밸런싱 및 액션 플랜 생성 (수정된 부분)
         active_sectors = [sec for sec in V13_SECTORS if new_states[sec]['is_holding']]
         num_holdings = len(active_sectors)
         MAX_WEIGHT = 0.50 if is_bull_market else 0.33
         
-        # 비보유 종목 비중 0 초기화
         for sec in V13_SECTORS:
+            # 1. 일단 타겟 비중 0.0으로 초기화 및 액션 플랜 기본값 세팅
             new_states[sec]['target_weight'] = 0.0
-
+            new_states[sec]['action_plan'] = "HOLD" # 기본 상태
+            
         if num_holdings > 0:
             target_w = min(1.0 / num_holdings, MAX_WEIGHT)
             for sec in active_sectors:
-                # 잦은 리밸런싱 방지 (5% 이상 차이날 때만 비중 조절)
                 prev_w = past_states[sec]['target_weight']
+                # 5% 이상 차이날 때만 비중 조절 (잦은 리밸런싱 방지)
                 if prev_w == 0.0 or abs(prev_w - target_w) > 0.05:
                     new_states[sec]['target_weight'] = float(target_w)
                 else:
                     new_states[sec]['target_weight'] = float(prev_w)
 
-    # 5️⃣ Supabase DB에 새로운 시계열 로그 Insert
-    print("💾 연산 완료! Supabase에 내일자 타겟 비중을 기록합니다...")
+        # 🎯 매도/매수 액션 플랜 판별 로직 추가
+        for sec in V13_SECTORS:
+            prev_w = past_states[sec]['target_weight']
+            new_w = new_states[sec]['target_weight']
+            
+            if new_w < prev_w:
+                # 비중이 줄어들거나 0이 됨 -> 오늘 종가 매도
+                new_states[sec]['action_plan'] = "SELL_TODAY_CLOSE"
+            elif new_w > prev_w:
+                # 비중이 늘어나거나 새로 편입됨 -> 내일 시가 매수
+                new_states[sec]['action_plan'] = "BUY_TOMORROW_OPEN"
+            else:
+                # 비중 변화 없음 -> 홀딩 또는 관망
+                new_states[sec]['action_plan'] = "HOLD"
+
+    # 5️⃣ Supabase DB에 새로운 시계열 로그 Insert (수정된 부분)
+    print("💾 연산 완료! Supabase에 매매 액션 플랜을 기록합니다...")
     insert_data = []
     for sec in V13_SECTORS:
         st = new_states[sec]
@@ -173,6 +188,7 @@ def run_daily_batch():
             'sector': sec,
             'trade_ticker': TRADING_MAP[sec],
             'target_weight': st['target_weight'],
+            'action_plan': st['action_plan'], # 👈 DB에 명시적 행동 지시 추가
             'is_holding': st['is_holding'],
             'days_held': st['days_held'],
             'entry_p': st['entry_p'],
@@ -180,7 +196,7 @@ def run_daily_batch():
             'cooldown_timer': st['cooldown_timer']
         })
     
-    # DB Insert 실행
+    # DB Insert 실행 (Supabase v13_daily_log 테이블에 'action_plan' 컬럼 추가 필수!)
     supabase.table('v13_daily_log').upsert(insert_data).execute()
     print("✅ [성공] V13.8 배치 작업이 완벽하게 종료되었습니다.")
 
