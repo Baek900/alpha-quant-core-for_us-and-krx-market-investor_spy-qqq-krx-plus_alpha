@@ -20,6 +20,12 @@ print("="*80)
 # ==============================================================================
 # 1. 환경 설정 및 상수 정의
 # ==============================================================================
+# 🚫 2026년 휴장일 데이터 추가
+HOLIDAYS_2026 = {
+    "us": {"2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25", "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25"},
+    "kr": {"2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-03-02", "2026-05-01", "2026-05-05", "2026-05-25", "2026-06-06", "2026-08-17", "2026-09-24", "2026-09-25", "2026-09-26", "2026-10-05", "2026-10-09", "2026-12-25", "2026-12-31"}
+}
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -56,6 +62,15 @@ def run_daily_batch():
     today_str = today_date.strftime('%Y-%m-%d')
     print(f"📅 기준일 (US Time): {today_str}")
 
+    # 🛑 [안전 장치] 주말 및 공휴일 검증 (미국 증시 기준)
+    if today_date.weekday() >= 5:
+        print(f"😴 오늘({today_str})은 주말입니다. 배치를 실행하지 않고 종료합니다.")
+        return
+        
+    if today_str in HOLIDAYS_2026["us"]:
+        print(f"🇺🇸 오늘({today_str})은 미국 증시 휴장일입니다. 배치를 실행하지 않고 종료합니다.")
+        return
+
     # 1️⃣ DB에서 어제(최근)의 봇 상태 10개 섹터 읽어오기
     print("🔍 Supabase에서 이전 포트폴리오 상태를 조회합니다...")
     response = supabase.table('v13_daily_log').select('*').order('target_date', desc=True).limit(10).execute()
@@ -71,7 +86,7 @@ def run_daily_batch():
     raw_trade = yf.download(trading_tickers + ['SPY'], period='5d', progress=False)
     today_closes = raw_trade['Close'].iloc[-1]
 
-    # 3️⃣ 데이터 로더를 통한 피처 추출 (다음 스텝에서 구현할 부분)
+    # 3️⃣ 데이터 로더를 통한 피처 추출
     # is_bull_market (SPY 200일선 기준), sec_sigs(기술적 시그널), mac_feats(매크로 지표)
     is_bull_market, features_dict = get_market_regime_and_features(today_date)
 
@@ -143,7 +158,8 @@ def run_daily_batch():
                         state['days_held'] = 0
                         state['entry_p'] = cur_price
                         state['high_p'] = cur_price
-# ⚖️ 타겟 비중(Weight) 리밸런싱 및 액션 플랜 생성 (수정된 부분)
+
+        # ⚖️ 타겟 비중(Weight) 리밸런싱 및 액션 플랜 생성
         active_sectors = [sec for sec in V13_SECTORS if new_states[sec]['is_holding']]
         num_holdings = len(active_sectors)
         MAX_WEIGHT = 0.50 if is_bull_market else 0.33
@@ -178,7 +194,7 @@ def run_daily_batch():
                 # 비중 변화 없음 -> 홀딩 또는 관망
                 new_states[sec]['action_plan'] = "HOLD"
 
-    # 5️⃣ Supabase DB에 새로운 시계열 로그 Insert (수정된 부분)
+    # 5️⃣ Supabase DB에 새로운 시계열 로그 Insert
     print("💾 연산 완료! Supabase에 매매 액션 플랜을 기록합니다...")
     insert_data = []
     for sec in V13_SECTORS:
@@ -188,7 +204,7 @@ def run_daily_batch():
             'sector': sec,
             'trade_ticker': TRADING_MAP[sec],
             'target_weight': st['target_weight'],
-            'action_plan': st['action_plan'], # 👈 DB에 명시적 행동 지시 추가
+            'action_plan': st['action_plan'], 
             'is_holding': st['is_holding'],
             'days_held': st['days_held'],
             'entry_p': st['entry_p'],
@@ -196,7 +212,7 @@ def run_daily_batch():
             'cooldown_timer': st['cooldown_timer']
         })
     
-    # DB Insert 실행 (Supabase v13_daily_log 테이블에 'action_plan' 컬럼 추가 필수!)
+    # DB Insert 실행 
     supabase.table('v13_daily_log').upsert(insert_data).execute()
     print("✅ [성공] V13.8 배치 작업이 완벽하게 종료되었습니다.")
 
