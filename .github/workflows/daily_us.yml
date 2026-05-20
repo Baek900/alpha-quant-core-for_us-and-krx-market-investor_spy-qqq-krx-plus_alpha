@@ -2,9 +2,9 @@ name: Daily Analysis (USA)
 
 on:
   schedule:
-    # 1. Prediction: UTC 10:00 (한국 19:00)
+    # 1. Prediction: UTC 10:15 (한국 19:15)
 
-    - cron: '0 10 * * 1-5'
+    - cron: '15 10 * * 1-5'
     
     # 2. Monitor A: UTC 13:00 (한국 22:00)
     - cron: '0 13 * * *'
