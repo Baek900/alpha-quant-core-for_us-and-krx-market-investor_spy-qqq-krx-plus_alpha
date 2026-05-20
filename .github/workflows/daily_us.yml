@@ -41,7 +41,7 @@ jobs:
 
     # [Prediction] UTC 11:00 (한국 20:00) 일 때만 실행
     - name: Run Prediction Logic (Signal)
-      if: github.event.schedule == '0 11 * * 1-5' || github.event_name == 'workflow_dispatch'
+      if: github.event.schedule == '15 10 * * 1-5' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
