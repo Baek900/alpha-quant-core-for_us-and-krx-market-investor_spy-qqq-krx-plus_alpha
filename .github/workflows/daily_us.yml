@@ -4,16 +4,16 @@ on:
   schedule:
     # 1. Prediction: UTC 10:15 (한국 19:15)
 
-    - cron: '15 10 * * 1-5'
+    - cron: '13 11 * * 1-5'
     
     # 2. Monitor A: UTC 13:00 (한국 22:00)
-    - cron: '0 13 * * *'
+    - cron: '3 13 * * *'
 
     # 3. Monitor B: UTC 13:30 (한국 22:30)
-    - cron: '30 13 * * *'
+    - cron: '33 13 * * *'
 
     # 4. Monitor C: UTC 14:40 (한국 23:40)
-    - cron: '40 14 * * *'
+    - cron: '43 14 * * *'
 
   workflow_dispatch:
 
@@ -41,7 +41,7 @@ jobs:
 
     # [Prediction] UTC 11:00 (한국 20:00) 일 때만 실행
     - name: Run Prediction Logic (Signal)
-      if: github.event.schedule == '15 10 * * 1-5' || github.event_name == 'workflow_dispatch'
+      if: github.event.schedule == '13 11 * * 1-5' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -52,7 +52,7 @@ jobs:
     # [Monitor] Prediction 시간(UTC 11:00)이 "아닐 때" 실행 (나머지 모든 스케줄 + 수동 실행)
     # 이렇게 하면 13:00, 13:30, 14:40 스케줄을 일일이 나열하지 않아도 됩니다.
     - name: Run Monitor Logic (Reference)
-      if: github.event.schedule != '0 11 * * 1-5' || github.event_name == 'workflow_dispatch'
+      if: github.event.schedule != '13 11 * * 1-5' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
