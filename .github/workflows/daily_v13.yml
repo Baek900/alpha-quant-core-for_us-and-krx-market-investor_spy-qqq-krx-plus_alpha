@@ -5,7 +5,7 @@ on:
   schedule:
     # 매일 UTC 10:15 (한국 시간 KST 익일 오후 7:15)에 실행
     # 미국 증시 정규장 마감 직후에 실행되어 내일 시가 진입 타겟을 계산합니다.
-    - cron: '15 10 * * 1-5'
+    - cron: '13 11 * * 1-5'
   
   # 수동 실행 버튼 (GitHub 페이지에서 직접 Run workflow 가능)
   workflow_dispatch:
