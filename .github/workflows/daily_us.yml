@@ -4,7 +4,7 @@ on:
   schedule:
     # 1. Prediction: UTC 10:15 (한국 19:15)
 
-    - cron: '13 11 * * 1-5'
+    - cron: '13 8 * * 1-5'
     
     # 2. Monitor A: UTC 13:00 (한국 22:00)
     - cron: '3 13 * * *'
@@ -41,7 +41,7 @@ jobs:
 
     # [Prediction] UTC 11:00 (한국 20:00) 일 때만 실행
     - name: Run Prediction Logic (Signal)
-      if: github.event.schedule == '13 11 * * 1-5' || github.event_name == 'workflow_dispatch'
+      if: github.event.schedule == '13 8 * * 1-5' || github.event_name == 'workflow_dispatch'
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
